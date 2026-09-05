@@ -2352,9 +2352,28 @@
         const bPlayed = isMatchPlayed(b);
         if (aPlayed && !bPlayed) return 1;
         if (!aPlayed && bPlayed) return -1;
+
+        const aLive = isMatchLive(a);
+        const bLive = isMatchLive(b);
+        if (aLive && !bLive) return -1;
+        if (!aLive && bLive) return 1;
+
         return compareMatchTimes(a, b);
       });
-      regularMatches.sort(compareMatchTimes);
+      regularMatches.sort((a, b) => {
+        if (currentLiveFilter === "all") {
+          const aPlayed = isMatchPlayed(a);
+          const bPlayed = isMatchPlayed(b);
+          if (aPlayed && !bPlayed) return 1;
+          if (!aPlayed && bPlayed) return -1;
+
+          const aLive = isMatchLive(a);
+          const bLive = isMatchLive(b);
+          if (aLive && !bLive) return -1;
+          if (!aLive && bLive) return 1;
+        }
+        return compareMatchTimes(a, b);
+      });
 
       let html = `<div class="live-sections-container">`;
 
@@ -2410,10 +2429,43 @@
       return null;
     }
 
+    let renderScoresDebounceTimer = null;
+    function scheduleRenderLiveScores() {
+      if (renderScoresDebounceTimer) clearTimeout(renderScoresDebounceTimer);
+      renderScoresDebounceTimer = setTimeout(() => {
+        if (currentMainView === "livescores") {
+          renderLiveScores();
+        }
+      }, 150);
+    }
+
+    function checkAndFixFavOrder() {
+      const container = document.getElementById("live-matches-container");
+      if (!container || currentMainView !== "livescores") return;
+      const items = Array.from(container.querySelectorAll(".live-match-item"));
+      if (!items.length) return;
+      let sawPlayed = false;
+      let orderBroken = false;
+      for (const el of items) {
+        const isPlayed = el.querySelector(".live-status-badge.played") !== null;
+        const isLive = el.querySelector(".live-status-badge.playing") !== null;
+        if (isPlayed) {
+          sawPlayed = true;
+        } else if (isLive && sawPlayed) {
+          orderBroken = true;
+          break;
+        }
+      }
+      if (orderBroken) {
+        renderLiveScores();
+      }
+    }
+
     // Gerçek zamanlı maç güncellemesi (Sahadan WebSocket'inden anlık push gelir)
     function applyLiveMatchUpdate(update) {
       const m = findMatchObject(update);
       if (!m) return;
+      const wasPlayed = isMatchPlayed(m);
 
       const mid = String(m.match_id);
       let scoreChanged = false;
@@ -2509,6 +2561,12 @@
       if (update.period) m.period = update.period;
       if (update.minute !== undefined && update.minute !== null) m.minute = update.minute;
       if (update.minute_extra !== undefined && update.minute_extra !== null) m.minute_extra = update.minute_extra;
+
+      const nowPlayed = isMatchPlayed(m);
+      if (!wasPlayed && nowPlayed) {
+        statusChanged = true;
+        scheduleRenderLiveScores();
+      }
 
       // Canlı Skor kartı DOM güncelle
       const scoreEl = document.getElementById(`live-score-${mid}`);
@@ -2623,6 +2681,8 @@
           });
           if (anyStatusChanged) {
             renderLiveScores();
+          } else {
+            checkAndFixFavOrder();
           }
           const connDot = document.getElementById("live-conn-dot");
           const connStatus = document.getElementById("live-conn-status");
@@ -2680,6 +2740,8 @@
             });
             if (anyStatusChanged) {
               renderLiveScores();
+            } else {
+              checkAndFixFavOrder();
             }
           });
         } else {
@@ -2968,7 +3030,9 @@
     // PWA Service Worker kaydı
     if ("serviceWorker" in navigator) {
       window.addEventListener("load", () => {
-        navigator.serviceWorker.register("sw.js").catch(() => {});
+        navigator.serviceWorker.register("sw.js").then(reg => {
+          reg.update().catch(() => {});
+        }).catch(() => {});
       });
     }
   </script>
