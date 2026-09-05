@@ -2655,8 +2655,11 @@
             icon: "icons/icon-192.png"
           })
         });
-        if (res.ok) {
-          alert("🚀 Test bildirimi sunucudan gönderildi! Kilit ekranınızı veya bildirim merkezini kontrol edin.");
+        const data = await res.json().catch(() => ({}));
+        if (res.ok && data.sent > 0) {
+          alert(`🚀 Test bildirimi ${data.sent} cihaza başarıyla gönderildi! Kilit ekranınızı veya bildirim merkezini kontrol edin.`);
+        } else if (res.ok && data.sent === 0) {
+          alert(`⚠️ Bildirim iletilemedi: ${data.error || "Kayıtlı cihaz anahtarı geçersiz veya henüz sunucuya ulaşmamış. Lütfen 'Bildirimleri Kapat' deyip tekrar 'Bildirimleri Aç' yapın."}`);
         } else {
           showLocalNotificationFallback();
         }

@@ -14,9 +14,19 @@ SUBSCRIPTIONS_FILE = "subscriptions.json"
 VAPID_FILE = "vapid_keys.json"
 CACHE_FILE = "leagues_cache.json"
 
+last_push_logs = []
+
+def log_event(msg):
+    timestamp = time.strftime("%Y-%m-%d %H:%M:%S")
+    entry = f"[{timestamp}] {msg}"
+    print(entry)
+    last_push_logs.append(entry)
+    if len(last_push_logs) > 50:
+        last_push_logs.pop(0)
+
 # Load VAPID keys
 if not os.path.exists(VAPID_FILE):
-    print("HATA: vapid_keys.json bulunamadı!")
+    log_event("HATA: vapid_keys.json bulunamadı!")
     sys.exit(1)
 
 with open(VAPID_FILE, "r") as f:
@@ -41,9 +51,9 @@ def load_match_names():
                             if mid and h and a:
                                 match_names_map[mid] = (h, a)
                                 count += 1
-            print(f"✓ {count} maçın takım isimleri önbellekten yüklendi.")
+            log_event(f"{count} maçın takım isimleri önbellekten yüklendi.")
         except Exception as e:
-            print("Önbellek okuma hatası:", e)
+            log_event(f"Önbellek okuma hatası: {e}")
 
 load_match_names()
 
@@ -62,46 +72,64 @@ def save_subscriptions(subs):
         json.dump(subs, f, indent=2, ensure_ascii=False)
 
 def send_push_to_sub(sub, payload):
+    endpoint = sub.get("endpoint", "")
     try:
-        webpush(
+        claims = {"sub": "mailto:oktemonur7@gmail.com"}
+        headers = {"Urgency": "high"}
+        resp = webpush(
             subscription_info=sub,
             data=json.dumps(payload, ensure_ascii=False),
             vapid_private_key=vapid_keys["private_key"],
-            vapid_claims={"sub": "mailto:admin@iddaatakip.local"}
+            vapid_claims=claims,
+            ttl=86400,
+            headers=headers
         )
-        print(f"  ✓ Bildirim iletildi: {sub.get('endpoint', '')[:45]}...")
-        return True
+        status_code = getattr(resp, "status_code", 200)
+        log_event(f"Push İletildi ({status_code}): {endpoint[:50]}...")
+        return True, f"HTTP {status_code}"
     except WebPushException as ex:
         status = getattr(ex.response, "status_code", None) if ex.response else None
-        print(f"  ✗ Push Hatası ({status}): {ex}")
+        body = getattr(ex.response, "text", str(ex)) if ex.response else str(ex)
+        err_msg = f"WebPushException ({status}): {body}"
+        log_event(f"Push Hatası: {err_msg}")
         if status in (404, 410):
-            return "expired"
-        return False
+            return "expired", err_msg
+        return False, err_msg
     except Exception as e:
-        print(f"  ✗ Beklenmeyen hata: {e}")
+        err_msg = f"Beklenmeyen Hata: {type(e).__name__}: {e}"
+        log_event(f"Push Hatası: {err_msg}")
+        return False, err_msg
+
+# Check if a match matches subscriber's favorites
+def is_match_favorited(sub, match_identifiers):
+    favs = sub.get("favorites", [])
+    if not favs:
         return False
+    fav_set = set(str(f).strip().lower() for f in favs)
+    for ident in match_identifiers:
+        if ident and str(ident).strip().lower() in fav_set:
+            return True
+    return False
 
 # Send push ONLY to subscribers who favorited this match
-def send_push_for_match(mid, payload):
+def send_push_for_match(match_identifiers, payload):
     subs = load_subscriptions()
     if not subs:
         return 0
 
-    s_mid = str(mid)
-    # Target only subscribers who favorited this match
-    target_subs = [s for s in subs if s_mid in [str(f) for f in s.get("favorites", [])]]
+    target_subs = [s for s in subs if is_match_favorited(s, match_identifiers)]
     if not target_subs:
         return 0
 
-    print(f"[FAVORİ PUSH] Maç {s_mid} için {len(target_subs)} aboneye bildirim: {payload.get('title')} - {payload.get('body')}")
+    log_event(f"Maç bildirimi ({len(target_subs)} abone): {payload.get('title')} - {payload.get('body')}")
     expired_endpoints = set()
     sent_count = 0
 
     for sub in target_subs:
-        res = send_push_to_sub(sub, payload)
-        if res is True:
+        ok, _ = send_push_to_sub(sub, payload)
+        if ok is True:
             sent_count += 1
-        elif res == "expired":
+        elif ok == "expired":
             expired_endpoints.add(sub.get("endpoint"))
 
     if expired_endpoints:
@@ -114,25 +142,28 @@ def send_push_for_match(mid, payload):
 def send_push_to_all(payload):
     subs = load_subscriptions()
     if not subs:
-        print("[PUSH] Kayıtlı abone yok.")
-        return 0
+        log_event("Push gönderilemedi: Kayıtlı abone yok.")
+        return 0, "Kayıtlı abone cihaz bulunamadı"
 
-    print(f"[PUSH TÜMÜ] {len(subs)} aboneye test bildirimi: {payload.get('title')}")
+    log_event(f"Test bildirimi {len(subs)} aboneye iletiliyor...")
     expired_endpoints = set()
     sent_count = 0
+    last_err = ""
 
     for sub in subs:
-        res = send_push_to_sub(sub, payload)
-        if res is True:
+        ok, msg = send_push_to_sub(sub, payload)
+        if ok is True:
             sent_count += 1
-        elif res == "expired":
-            expired_endpoints.add(sub.get("endpoint"))
+        else:
+            last_err = msg
+            if ok == "expired":
+                expired_endpoints.add(sub.get("endpoint"))
 
     if expired_endpoints:
         active_subs = [s for s in subs if s.get("endpoint") not in expired_endpoints]
         save_subscriptions(active_subs)
 
-    return sent_count
+    return sent_count, last_err
 
 # Match state tracking
 live_matches_state = {}
@@ -144,6 +175,15 @@ def process_match_update(update):
     mid = str(update.get("id") or update.get("match_id") or update.get("uuid") or "")
     if not mid:
         return
+
+    match_ids = [
+        mid,
+        str(update.get("id", "")),
+        str(update.get("match_id", "")),
+        str(update.get("uuid", "")),
+        str(update.get("match_uuid", ""))
+    ]
+    match_ids = [i for i in match_ids if i]
 
     cached_names = match_names_map.get(mid, ("Ev Sahibi", "Deplasman"))
     m = live_matches_state.setdefault(mid, {
@@ -162,7 +202,6 @@ def process_match_update(update):
         "notified_ft": False
     })
 
-    # Update names if found in cache and currently default
     if m["home_team"] == "Ev Sahibi" and cached_names[0] != "Ev Sahibi":
         m["home_team"] = cached_names[0]
         m["away_team"] = cached_names[1]
@@ -173,6 +212,8 @@ def process_match_update(update):
         m["away_team"] = update["away_team_name"]
     if "minute" in update and update["minute"] is not None:
         m["minute"] = str(update["minute"])
+
+    all_identifiers = match_ids + [m["home_team"], m["away_team"]]
 
     # 1. GOL KONTROLÜ
     new_home = update.get("fts_A")
@@ -201,8 +242,8 @@ def process_match_update(update):
         min_str = f"{m['minute']}'" if m["minute"] else "Canlı"
         title = f"⚽ GOL! ({min_str})"
         body = f"{m['home_team']} {m['home_score']} - {m['away_score']} {m['away_team']}"
-        print(f"[GOL] {title} {body}")
-        send_push_for_match(mid, {
+        log_event(f"GOL TESPİT EDİLDİ: {title} {body}")
+        send_push_for_match(all_identifiers, {
             "title": title,
             "body": body,
             "icon": "icons/icon-192.png",
@@ -225,8 +266,8 @@ def process_match_update(update):
         ht_a = m["ht_away"] if m["ht_away"] is not None else (m["away_score"] if m["away_score"] is not None else 0)
         title = f"⏸️ İLK YARI BİTTİ (İY {ht_h}-{ht_a})"
         body = f"{m['home_team']} vs {m['away_team']}"
-        print(f"[İY BİTTİ] {title} {body}")
-        send_push_for_match(mid, {
+        log_event(f"İY BİTTİ: {title} {body}")
+        send_push_for_match(all_identifiers, {
             "title": title,
             "body": body,
             "icon": "icons/icon-192.png",
@@ -241,8 +282,8 @@ def process_match_update(update):
         a = m["away_score"] if m["away_score"] is not None else 0
         title = f"🏁 MAÇ BİTTİ (MS {h}-{a})"
         body = f"{m['home_team']} vs {m['away_team']}"
-        print(f"[MAÇ BİTTİ] {title} {body}")
-        send_push_for_match(mid, {
+        log_event(f"MAÇ BİTTİ: {title} {body}")
+        send_push_for_match(all_identifiers, {
             "title": title,
             "body": body,
             "icon": "icons/icon-192.png",
@@ -259,8 +300,8 @@ def process_match_update(update):
                     min_str = f"{m['minute']}'" if m["minute"] else "Canlı"
                     title = f"🟥 KIRMIZI KART! ({min_str})"
                     body = f"{m['home_team']} kırmızı kart gördü! ({m['home_team']} {m.get('home_score',0)} - {m.get('away_score',0)} {m['away_team']})"
-                    print(f"[KART] {title} {body}")
-                    send_push_for_match(mid, {
+                    log_event(f"KIRMIZI KART: {title} {body}")
+                    send_push_for_match(all_identifiers, {
                         "title": title,
                         "body": body,
                         "icon": "icons/icon-192.png",
@@ -278,8 +319,8 @@ def process_match_update(update):
                     min_str = f"{m['minute']}'" if m["minute"] else "Canlı"
                     title = f"🟥 KIRMIZI KART! ({min_str})"
                     body = f"{m['away_team']} kırmızı kart gördü! ({m['home_team']} {m.get('home_score',0)} - {m.get('away_score',0)} {m['away_team']})"
-                    print(f"[KART] {title} {body}")
-                    send_push_for_match(mid, {
+                    log_event(f"KIRMIZI KART: {title} {body}")
+                    send_push_for_match(all_identifiers, {
                         "title": title,
                         "body": body,
                         "icon": "icons/icon-192.png",
@@ -294,12 +335,12 @@ def start_socket_listener():
 
     @sio.on("connect")
     def on_connect():
-        print("✓ Sahadan Canlı Socket Yayınına Bağlandı!")
+        log_event("✓ Sahadan Canlı Socket Yayınına Bağlandı!")
         sio.emit("join-room", "soccer")
 
     @sio.on("disconnect")
     def on_disconnect():
-        print("⚠ Socket bağlantısı koptu, yeniden bağlanılıyor...")
+        log_event("⚠ Socket bağlantısı koptu, yeniden bağlanılıyor...")
 
     @sio.on("matches")
     def on_matches(data):
@@ -344,6 +385,29 @@ class RequestHandler(http.server.SimpleHTTPRequestHandler):
             self.wfile.write(json.dumps({"count": len(subs)}).encode("utf-8"))
             return
 
+        if self.path == "/api/diagnose":
+            subs = load_subscriptions()
+            safe_subs = []
+            for s in subs:
+                ep = s.get("endpoint", "")
+                domain = ep.split("/")[2] if "//" in ep else "unknown"
+                safe_subs.append({
+                    "domain": domain,
+                    "endpoint_preview": ep[:40] + "...",
+                    "has_keys": bool(s.get("keys")),
+                    "favorites_count": len(s.get("favorites", [])),
+                    "favorites": s.get("favorites", [])[:10]
+                })
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            self.wfile.write(json.dumps({
+                "subscribers_count": len(subs),
+                "subscribers": safe_subs,
+                "recent_logs": last_push_logs
+            }, indent=2, ensure_ascii=False).encode("utf-8"))
+            return
+
         super().do_GET()
 
     def do_POST(self):
@@ -355,23 +419,21 @@ class RequestHandler(http.server.SimpleHTTPRequestHandler):
                 subs = load_subscriptions()
                 endpoint = sub_data.get("endpoint")
                 
-                # Check if endpoint already exists
+                favs = [str(f) for f in sub_data.get("favorites", [])]
                 existing = next((s for s in subs if s.get("endpoint") == endpoint), None)
                 if existing:
                     if "keys" in sub_data:
                         existing["keys"] = sub_data["keys"]
-                    if "favorites" in sub_data:
-                        existing["favorites"] = [str(f) for f in sub_data["favorites"]]
+                    existing["favorites"] = favs
+                    log_event(f"Abone favorileri güncellendi ({len(favs)} maç): {endpoint[:40]}...")
                 else:
                     subs.append({
                         "endpoint": endpoint,
                         "keys": sub_data.get("keys", {}),
-                        "favorites": [str(f) for f in sub_data.get("favorites", [])]
+                        "favorites": favs
                     })
-                save_subscriptions(subs)
-
-                # Send welcome push only on initial subscription
-                if not existing:
+                    log_event(f"Yeni abone kaydedildi ({len(favs)} favori): {endpoint[:40]}...")
+                    # Send welcome push
                     send_push_to_sub(sub_data, {
                         "title": "⭐ İddaa Takip",
                         "body": "✅ Bildirimler aktif! Sadece yıldızladığınız (★) maçların gol, devre, maç sonu ve kırmızı kart bildirimleri gelecek.",
@@ -379,11 +441,14 @@ class RequestHandler(http.server.SimpleHTTPRequestHandler):
                         "tag": "welcome"
                     })
 
+                save_subscriptions(subs)
+
                 self.send_response(200)
                 self.send_header("Content-Type", "application/json")
                 self.end_headers()
                 self.wfile.write(json.dumps({"status": "ok", "subscribers": len(subs)}).encode("utf-8"))
             except Exception as e:
+                log_event(f"Subscribe hatası: {e}")
                 self.send_response(400)
                 self.send_header("Content-Type", "application/json")
                 self.end_headers()
@@ -405,11 +470,11 @@ class RequestHandler(http.server.SimpleHTTPRequestHandler):
                 "icon": "icons/icon-192.png",
                 "tag": "test-push"
             }
-            sent = send_push_to_all(payload)
+            sent, err = send_push_to_all(payload)
             self.send_response(200)
             self.send_header("Content-Type", "application/json")
             self.end_headers()
-            self.wfile.write(json.dumps({"status": "ok", "sent": sent}).encode("utf-8"))
+            self.wfile.write(json.dumps({"status": "ok", "sent": sent, "error": err}).encode("utf-8"))
             return
 
         self.send_response(404)
@@ -424,10 +489,10 @@ def keep_alive_ping():
             req = urllib.request.Request(ping_url, headers={"User-Agent": "RenderKeepAlive/1.0"})
             with urllib.request.urlopen(req, timeout=15) as res:
                 if res.status == 200:
-                    print("[KEEP-ALIVE] Ping başarılı, sunucu uyanık tutuluyor.")
+                    pass
         except Exception as e:
-            print("[KEEP-ALIVE] Ping uyarısı:", e)
-        time.sleep(540)  # 9 dakikada bir (15 dk sınırından önce)
+            pass
+        time.sleep(540)
 
 if __name__ == "__main__":
     os.chdir(os.path.dirname(os.path.abspath(__file__)))
@@ -437,20 +502,14 @@ if __name__ == "__main__":
     sock_thread = threading.Thread(target=start_socket_listener, daemon=True)
     sock_thread.start()
 
-    # Start keep-alive ping thread (Render Free Tier uyku önleyici)
+    # Start keep-alive ping thread
     keepalive_thread = threading.Thread(target=keep_alive_ping, daemon=True)
     keepalive_thread.start()
 
-    print(f"==================================================")
-    print(f"🚀 İddaa Takip Web Push Sunucusu Başlatıldı")
-    print(f"👉 Adres: http://localhost:{PORT}")
-    print(f"👉 VAPID Public Key: {vapid_keys['public_key']}")
-    print(f"👉 Kayıtlı Abone Cihaz: {len(load_subscriptions())}")
-    print(f"==================================================")
+    log_event(f"🚀 İddaa Takip Web Push Sunucusu Başlatıldı (Port: {PORT})")
 
     server = socketserver.TCPServer(("", PORT), RequestHandler)
     try:
         server.serve_forever()
     except KeyboardInterrupt:
-        print("\nSunucu kapatıldı.")
         server.server_close()

@@ -1,9 +1,9 @@
-const CACHE = "iddaatakip-v5";
+const CACHE = "iddaatakip-v6";
 const OFFLINE_ASSETS = [
-  "/iddaatakip/",
-  "/iddaatakip/index.html",
-  "/iddaatakip/icons/icon-192.png",
-  "/iddaatakip/icons/icon-512.png"
+  "./",
+  "./index.html",
+  "./icons/icon-192.png",
+  "./icons/icon-512.png"
 ];
 
 self.addEventListener("install", e => {
@@ -44,7 +44,7 @@ self.addEventListener("push", e => {
     body: "Canlı maç güncellemesi",
     icon: "icons/icon-192.png",
     badge: "icons/icon-192.png",
-    url: "/iddaatakip/"
+    url: "./"
   };
 
   if (e.data) {
@@ -61,7 +61,7 @@ self.addEventListener("push", e => {
     icon: data.icon || "icons/icon-192.png",
     badge: data.badge || "icons/icon-192.png",
     vibrate: [250, 100, 250, 100, 250],
-    data: { url: data.url || "/iddaatakip/" },
+    data: { url: data.url || "./" },
     tag: data.tag || "iddaatakip-goal",
     renotify: true
   };
@@ -73,11 +73,11 @@ self.addEventListener("push", e => {
 
 self.addEventListener("notificationclick", e => {
   e.notification.close();
-  const targetUrl = e.notification.data?.url || "/iddaatakip/";
+  const targetUrl = e.notification.data?.url || "./";
   e.waitUntil(
     clients.matchAll({ type: "window", includeUncontrolled: true }).then(windowClients => {
       for (const client of windowClients) {
-        if (client.url && client.url.includes("iddaatakip") && "focus" in client) {
+        if ("focus" in client) {
           return client.focus();
         }
       }
