@@ -260,22 +260,54 @@ def process_match_update(update, is_initial=False):
         try: new_a = int(new_away)
         except ValueError: pass
 
-    # Asla skoru geri düşürme (out-of-order delta veya çift event koruması)
+    # Skor düşüş kontrolü (VAR / Gol İptali vs Jitter Koruması)
+    is_home_cancel = False
+    is_away_cancel = False
+    now_ts = time.time()
+    last_goal_time = m.get("last_goal_time", 0)
+
     if new_h is not None and m["home_score"] is not None and new_h < m["home_score"]:
-        new_h = m["home_score"]
+        # Eğer gol son 12 saniye içinde atılmışsa, bu anlık socket jitter'ıdır, yoksay
+        if (now_ts - last_goal_time) < 12:
+            new_h = m["home_score"]
+        else:
+            is_home_cancel = True
+
     if new_a is not None and m["away_score"] is not None and new_a < m["away_score"]:
-        new_a = m["away_score"]
+        if (now_ts - last_goal_time) < 12:
+            new_a = m["away_score"]
+        else:
+            is_away_cancel = True
+
+    # 1. GERÇEK GOL İPTALİ TESPİTİ (VAR)
+    if is_home_cancel or is_away_cancel:
+        team_str = f" {m['home_team']}" if is_home_cancel else f" {m['away_team']}"
+        cancel_title = f"❌ GOL İPTAL!{team_str}"
+        cancel_body = f"{m['home_team']} {new_h} - {new_a} {m['away_team']}"
+        log_event(f"GOL İPTAL EDİLDİ: {cancel_title} -> {cancel_body}")
+        m["home_score"] = new_h
+        m["away_score"] = new_a
+        # Eski skoru notified_scores'tan temizle ki sonradan tekrar atılırsa bildirim gidebilsin
+        m["notified_scores"] = {s for s in m["notified_scores"] if s[0] <= new_h and s[1] <= new_a}
+        send_push_for_match(all_identifiers, {
+            "title": cancel_title,
+            "body": cancel_body,
+            "icon": "icons/icon-192.png",
+            "tag": f"goal-cancel-{mid}-{new_h}-{new_a}"
+        })
 
     if new_h is not None:
         if m["home_score"] is not None and new_h > m["home_score"]:
             goal_scored = True
             goal_team = m["home_team"]
+            m["last_goal_time"] = now_ts
         m["home_score"] = new_h
 
     if new_a is not None:
         if m["away_score"] is not None and new_a > m["away_score"]:
             goal_scored = True
             goal_team = m["away_team"]
+            m["last_goal_time"] = now_ts
         m["away_score"] = new_a
 
     # DEDUPLICATION: Aynı skor için arka arkaya tekrar bildirim gitmesini engelle

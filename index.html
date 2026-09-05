@@ -1031,6 +1031,14 @@
       animation: goal-glow 0.8s infinite alternate;
     }
 
+    .live-score-display.goal-cancel-flash {
+      background: rgba(239, 68, 68, 0.35) !important;
+      border-color: #ef4444 !important;
+      color: #ef4444 !important;
+      box-shadow: 0 0 25px rgba(239, 68, 68, 0.9), inset 0 0 10px rgba(239, 68, 68, 0.5) !important;
+      animation: goal-glow 0.8s infinite alternate;
+    }
+
     @keyframes goal-glow {
       0% { transform: scale(1); filter: brightness(1); }
       100% { transform: scale(1.1); filter: brightness(1.3); }
@@ -1568,7 +1576,7 @@
       syncFavoritesToServer();
     }
 
-    // Gol Bildirimi (Yüksek sesli, net ve gür çift tonlu gol uyarısı)
+    // Gol Bildirimi (Net, kulağı tırmalamayan ve tok çift tonlu gol uyarısı - 2x ses)
     let audioCtx = null;
     function playGoalSound() {
       try {
@@ -1583,29 +1591,60 @@
 
         const now = audioCtx.currentTime;
 
-        // 1. Ton: 880 Hz (A5) - Canlı ve net giriş
+        // 1. Ton: 880 Hz (A5) - Canlı giriş
         const osc1 = audioCtx.createOscillator();
         const gain1 = audioCtx.createGain();
         osc1.type = "sine";
         osc1.frequency.setValueAtTime(880, now);
-        gain1.gain.setValueAtTime(0.85, now);
-        gain1.gain.exponentialRampToValueAtTime(0.01, now + 0.2);
+        gain1.gain.setValueAtTime(0.55, now);
+        gain1.gain.exponentialRampToValueAtTime(0.01, now + 0.18);
         osc1.connect(gain1);
         gain1.connect(audioCtx.destination);
         osc1.start(now);
-        osc1.stop(now + 0.2);
+        osc1.stop(now + 0.18);
 
-        // 2. Ton: 1320 Hz (E6) - Mobil hoparlörlerde belirgin ve gür çıkan armoni tonu
+        // 2. Ton: 1320 Hz (E6) - Net yükselen gol zili
         const osc2 = audioCtx.createOscillator();
         const gain2 = audioCtx.createGain();
         osc2.type = "triangle";
         osc2.frequency.setValueAtTime(1320, now + 0.08);
-        gain2.gain.setValueAtTime(0.9, now + 0.08);
-        gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.38);
+        gain2.gain.setValueAtTime(0.58, now + 0.08);
+        gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.35);
         osc2.connect(gain2);
         gain2.connect(audioCtx.destination);
         osc2.start(now + 0.08);
-        osc2.stop(now + 0.38);
+        osc2.stop(now + 0.35);
+      } catch (err) {
+        console.warn("Ses çalma hatası:", err);
+      }
+    }
+
+    // Gol İptali Bildirimi (Alçalan çift tonlu uyarı sesi)
+    function playCancelSound() {
+      try {
+        const AudioContext = window.AudioContext || window.webkitAudioContext;
+        if (!AudioContext) return;
+        if (!audioCtx) {
+          audioCtx = new AudioContext();
+        }
+        if (audioCtx.state === "suspended") {
+          audioCtx.resume();
+        }
+
+        const now = audioCtx.currentTime;
+
+        // Alçalan Ton: 780 Hz -> 520 Hz (İptal uyarısı)
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = "sawtooth";
+        osc.frequency.setValueAtTime(780, now);
+        osc.frequency.exponentialRampToValueAtTime(480, now + 0.28);
+        gain.gain.setValueAtTime(0.48, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start(now);
+        osc.stop(now + 0.3);
       } catch (err) {
         console.warn("Ses çalma hatası:", err);
       }
@@ -2366,26 +2405,75 @@
       const mid = String(m.match_id);
       let scoreChanged = false;
       let goalScored = false;
+      let goalCancelled = false;
 
       // Sayfa yeni açıldığında socket'ten gelen ilk toplu veriler geçmişteki golleri içerir.
-      // Bunların o an atılmış gibi 8 saniye parlamasını ve ses çalmasını engelle:
+      // Bunların o an atılmış gibi 12 saniye parlamasını ve ses çalmasını engelle:
       const isInitialSync = (Date.now() - APP_LOAD_TIME < 6000) || !m._initialSynced;
       m._initialSynced = true;
+      if (!m._notifiedScores) m._notifiedScores = new Set();
 
-      // Skor kontrolü
+      const nowTs = Date.now();
+      const lastGoalTime = m._lastGoalTime || 0;
+
+      // Skor kontrolü - Ev Sahibi
       if (update.fts_A !== undefined && update.fts_A !== null) {
-        const newHome = parseInt(update.fts_A, 10);
+        let newHome = parseInt(update.fts_A, 10);
         const oldHome = (m.home_score !== null && m.home_score !== undefined && !isNaN(parseInt(m.home_score, 10))) ? parseInt(m.home_score, 10) : null;
-        if (!isInitialSync && oldHome !== null && newHome > oldHome) goalScored = true;
+
+        // Jitter Koruması: Eğer gol son 12 saniye içinde atıldıysa ve anlık olarak eski skor geldiyse yoksay
+        if (oldHome !== null && newHome < oldHome) {
+          if (nowTs - lastGoalTime < 12000) {
+            newHome = oldHome; // 1-2 saniyelik socket dalgalanmasını engelle
+          } else if (!isInitialSync) {
+            goalCancelled = true;
+          }
+        }
+
+        if (!isInitialSync && oldHome !== null && newHome > oldHome) {
+          goalScored = true;
+          m._lastGoalTime = nowTs;
+        }
         if (newHome !== m.home_score) scoreChanged = true;
         m.home_score = newHome;
       }
+
+      // Skor kontrolü - Deplasman
       if (update.fts_B !== undefined && update.fts_B !== null) {
-        const newAway = parseInt(update.fts_B, 10);
+        let newAway = parseInt(update.fts_B, 10);
         const oldAway = (m.away_score !== null && m.away_score !== undefined && !isNaN(parseInt(m.away_score, 10))) ? parseInt(m.away_score, 10) : null;
-        if (!isInitialSync && oldAway !== null && newAway > oldAway) goalScored = true;
+
+        // Jitter Koruması: Eğer gol son 12 saniye içinde atıldıysa ve anlık olarak eski skor geldiyse yoksay
+        if (oldAway !== null && newAway < oldAway) {
+          if (nowTs - lastGoalTime < 12000) {
+            newAway = oldAway;
+          } else if (!isInitialSync) {
+            goalCancelled = true;
+          }
+        }
+
+        if (!isInitialSync && oldAway !== null && newAway > oldAway) {
+          goalScored = true;
+          m._lastGoalTime = nowTs;
+        }
         if (newAway !== m.away_score) scoreChanged = true;
         m.away_score = newAway;
+      }
+
+      // Skor Çift Ses Önleme (Deduplication)
+      const currentScoreKey = `${m.home_score}-${m.away_score}`;
+      if (goalScored) {
+        if (m._notifiedScores.has(currentScoreKey)) {
+          // Bu skor için zaten ses çaldı ve animasyon başladı, mükerrer sesi engelle!
+          goalScored = false;
+        } else {
+          m._notifiedScores.add(currentScoreKey);
+        }
+      }
+
+      if (goalCancelled) {
+        // İptal edilen skoru hafızadan sil ki ileride tekrar o skora çıkarsa haber versin
+        m._notifiedScores.clear();
       }
 
       if (update.hts_A !== undefined && update.hts_A !== null) m.half_time_home = update.hts_A;
@@ -2417,17 +2505,33 @@
           else scoreEl.classList.remove("live-active");
         }
 
-        // Gol animasyonu (yeşil neon parlama) ve Bip Sesi
+        const isFav = favoriteMatchIds.has(mid);
+        const shouldAlert = (currentLiveFilter !== "favorites" || isFav);
+
+        // 1. Gol animasyonu (yeşil neon parlama) ve Bip Sesi
         if (goalScored) {
-          const isFav = favoriteMatchIds.has(mid);
-          // Eğer kullanıcı "Favorilerim" sayfasındaysa sadece favori maçlarda ses çal
-          if (currentLiveFilter !== "favorites" || isFav) {
+          if (shouldAlert) {
             playGoalSound();
           }
+          scoreEl.classList.remove("goal-cancel-flash");
           scoreEl.classList.add("goal-flash");
-          setTimeout(() => {
+          if (m._flashTimer) clearTimeout(m._flashTimer);
+          m._flashTimer = setTimeout(() => {
             if (scoreEl) scoreEl.classList.remove("goal-flash");
           }, 12000);
+        }
+
+        // 2. Gol İptali animasyonu (kırmızı neon parlama) ve İptal Sesi
+        if (goalCancelled) {
+          if (shouldAlert) {
+            playCancelSound();
+          }
+          scoreEl.classList.remove("goal-flash");
+          scoreEl.classList.add("goal-cancel-flash");
+          if (m._flashTimer) clearTimeout(m._flashTimer);
+          m._flashTimer = setTimeout(() => {
+            if (scoreEl) scoreEl.classList.remove("goal-cancel-flash");
+          }, 10000);
         }
       }
 
