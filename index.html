@@ -1614,11 +1614,15 @@
       initLiveSocket();
       checkPushSubscription();
 
-      // Mobilde uygulamayı doğrudan Canlı Skorlar > Favorilerim sayfasıyla aç
+      // Mobilde uygulamayı Canlı Skorlar ile aç (favori varsa favoriler, yoksa tüm maçlar)
       const isMobile = window.innerWidth <= 768 || /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent);
       if (isMobile) {
         switchMainView("livescores");
-        filterLiveStatus("favorites");
+        if (favoriteMatchIds && favoriteMatchIds.size > 0) {
+          filterLiveStatus("favorites");
+        } else {
+          filterLiveStatus("all");
+        }
       }
     }
 
