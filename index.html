@@ -2725,8 +2725,8 @@
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            title: "",
-            body: "⭐ Test Bildirimi\nFavori maç bildirim sisteminiz kusursuz çalışıyor! 🚀",
+            title: "⭐ Test Bildirimi",
+            body: "Favori maç bildirim sisteminiz kusursuz çalışıyor! 🚀",
             icon: "icons/icon-192.png"
           })
         });
@@ -2746,8 +2746,8 @@
     function showLocalNotificationFallback() {
       if (Notification.permission === "granted") {
         navigator.serviceWorker.ready.then(reg => {
-          reg.showNotification("", {
-            body: "⭐ Test Bildirimi\nFavori maç bildirim sisteminiz kusursuz çalışıyor! 🚀",
+          reg.showNotification("⭐ Test Bildirimi", {
+            body: "Favori maç bildirim sisteminiz kusursuz çalışıyor! 🚀",
             icon: "icons/icon-192.png"
           });
         });
