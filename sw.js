@@ -1,4 +1,4 @@
-const CACHE = "iddaatakip-v9";
+const CACHE = "iddaatakip-v10";
 const OFFLINE_ASSETS = [
   "./",
   "./index.html",
@@ -40,7 +40,7 @@ self.addEventListener("fetch", e => {
 // PWA WEB PUSH NOTIFICATION HANDLERS
 self.addEventListener("push", e => {
   let data = {
-    title: "İddaa Takip",
+    title: "",
     body: "Canlı maç güncellemesi",
     icon: "icons/icon-192.png",
     badge: "icons/icon-192.png",
@@ -62,12 +62,14 @@ self.addEventListener("push", e => {
     badge: data.badge || "icons/icon-192.png",
     vibrate: [250, 100, 250, 100, 250],
     data: { url: data.url || "./" },
-    tag: data.tag || "iddaatakip-goal",
+    tag: data.tag || ("iddaatakip-" + Date.now()),
     renotify: true
   };
 
+  const title = (data.title !== undefined && data.title !== null) ? data.title : "";
+
   e.waitUntil(
-    self.registration.showNotification(data.title || "İddaa Takip", options)
+    self.registration.showNotification(title, options)
   );
 });
 
