@@ -1562,8 +1562,57 @@
       return s === "playing" || s === "live" || p === "half time" || p === "devre arası" || p === "ht";
     }
 
-    // Favoriler (localStorage'da saklanır)
+    // Favoriler (localStorage'da saklanır ve her sabah saat 07:00'de otomatik sıfırlanır)
+    function getFavoritesCycleId() {
+      const now = new Date();
+      const utcMs = now.getTime() + (now.getTimezoneOffset() * 60000);
+      const trNow = new Date(utcMs + (3 * 3600000));
+      if (trNow.getHours() < 7) {
+        trNow.setDate(trNow.getDate() - 1);
+      }
+      const y = trNow.getFullYear();
+      const m = String(trNow.getMonth() + 1).padStart(2, "0");
+      const d = String(trNow.getDate()).padStart(2, "0");
+      return `${y}-${m}-${d}`;
+    }
+
     let favoriteMatchIds = new Set();
+
+    function checkAndResetFavoritesAt7AM() {
+      const currentCycle = getFavoritesCycleId();
+      let storedCycle = null;
+      try {
+        storedCycle = localStorage.getItem("agy_fav_cycle");
+      } catch (e) {}
+
+      if (!storedCycle) {
+        try {
+          localStorage.setItem("agy_fav_cycle", currentCycle);
+        } catch (e) {}
+        return false;
+      }
+
+      if (storedCycle !== currentCycle) {
+        favoriteMatchIds.clear();
+        try {
+          localStorage.removeItem("agy_fav_matches");
+          localStorage.setItem("agy_fav_cycle", currentCycle);
+        } catch (e) {}
+        updateLiveCounts();
+        if (typeof renderLiveScores === "function") {
+          renderLiveScores();
+        }
+        if (typeof syncFavoritesToServer === "function") {
+          syncFavoritesToServer();
+        }
+        return true;
+      }
+      return false;
+    }
+
+    // İlk açılışta sabah 07:00 kontrolü yap
+    checkAndResetFavoritesAt7AM();
+
     try {
       const savedFavs = localStorage.getItem("agy_fav_matches");
       if (savedFavs) {
@@ -1577,6 +1626,7 @@
       if (event) {
         event.stopPropagation();
       }
+      checkAndResetFavoritesAt7AM();
       const sMid = String(mid);
       if (favoriteMatchIds.has(sMid)) {
         favoriteMatchIds.delete(sMid);
@@ -1585,12 +1635,23 @@
       }
       try {
         localStorage.setItem("agy_fav_matches", JSON.stringify(Array.from(favoriteMatchIds)));
+        localStorage.setItem("agy_fav_cycle", getFavoritesCycleId());
       } catch (e) {}
 
       updateLiveCounts();
       renderLiveScores();
       syncFavoritesToServer();
     }
+
+    setInterval(checkAndResetFavoritesAt7AM, 15000);
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState === "visible") {
+        checkAndResetFavoritesAt7AM();
+        if (typeof pollLiveScoresFromServer === "function") {
+          pollLiveScoresFromServer();
+        }
+      }
+    });
 
     // Gol Bildirimi (Net, kulağı tırmalamayan ve tok çift tonlu gol uyarısı - 2x ses)
     let audioCtx = null;
@@ -2328,7 +2389,7 @@
 
       if (!filtered.length) {
         if (currentLiveFilter === "favorites") {
-          container.innerHTML = "<div class='loading-state'>⭐ Henüz favori maç eklemediniz.<br><span style='font-size:0.82rem; color:#94a3b8; display:inline-block; margin-top:6px;'>Tüm Maçlar sekmesinden takip etmek istediğiniz maçların yanındaki ★ simgesine dokunun.</span></div>";
+          container.innerHTML = "<div class='loading-state'>⭐ Henüz favori maç eklemediniz.<br><span style='font-size:0.82rem; color:#94a3b8; display:inline-block; margin-top:6px;'>Tüm Maçlar sekmesinden takip etmek istediğiniz maçların yanındaki ★ simgesine dokunun.<br><span style='font-size:0.75rem; color:#64748b; margin-top:4px; display:inline-block;'>Favoriler listeniz her sabah 07:00'de otomatik sıfırlanır.</span></span></div>";
         } else {
           container.innerHTML = "<div class='loading-state'>Seçilen kriterde maç bulunamadı.</div>";
         }

@@ -409,6 +409,33 @@ def process_match_update(update, is_initial=False):
 # SAHADAN REAL-TIME HTTP SYNC ENGINE
 latest_matches_summary = []
 is_initial_sync = True
+last_7am_reset_date = ""
+
+def check_and_reset_subscribers_at_7am():
+    global last_7am_reset_date
+    tz_tr = datetime.timezone(datetime.timedelta(hours=3))
+    now = datetime.datetime.now(tz_tr)
+    cycle_dt = now if now.hour >= 7 else (now - datetime.timedelta(days=1))
+    current_cycle = cycle_dt.strftime("%Y-%m-%d")
+
+    if not last_7am_reset_date:
+        last_7am_reset_date = current_cycle
+        return
+
+    if last_7am_reset_date != current_cycle:
+        last_7am_reset_date = current_cycle
+        try:
+            subs = load_subscriptions()
+            cleared = 0
+            for s in subs:
+                if s.get("favorites"):
+                    s["favorites"] = []
+                    cleared += 1
+            if cleared > 0:
+                save_subscriptions(subs)
+                log_event(f"🌅 Sabah 07:00 sıfırlaması: {cleared} abonenin favorileri temizlendi.")
+        except Exception as e:
+            log_event(f"Sabah 07:00 sıfırlama hatası: {e}")
 
 def sahadan_http_sync_worker():
     global is_initial_sync, latest_matches_summary
@@ -423,6 +450,7 @@ def sahadan_http_sync_worker():
 
     while True:
         now = time.time()
+        check_and_reset_subscribers_at_7am()
 
         # 1. Her 30 saniyede bir tüm maçların durumunu çek (soccer-live-e)
         if now - last_full_fetch >= 30:
