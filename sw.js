@@ -1,4 +1,4 @@
-const CACHE = "iddaatakip-v2";
+const CACHE = "iddaatakip-v3";
 const OFFLINE_ASSETS = [
   "/iddaatakip/",
   "/iddaatakip/index.html",
@@ -34,5 +34,56 @@ self.addEventListener("fetch", e => {
         return res;
       })
       .catch(() => caches.match(e.request))
+  );
+});
+
+// PWA WEB PUSH NOTIFICATION HANDLERS
+self.addEventListener("push", e => {
+  let data = {
+    title: "⚽ İddaa Takip",
+    body: "Canlı maç güncellemesi",
+    icon: "icons/icon-192.png",
+    badge: "icons/icon-192.png",
+    url: "/iddaatakip/"
+  };
+
+  if (e.data) {
+    try {
+      const parsed = e.data.json();
+      data = { ...data, ...parsed };
+    } catch (err) {
+      data.body = e.data.text();
+    }
+  }
+
+  const options = {
+    body: data.body,
+    icon: data.icon || "icons/icon-192.png",
+    badge: data.badge || "icons/icon-192.png",
+    vibrate: [250, 100, 250, 100, 250],
+    data: { url: data.url || "/iddaatakip/" },
+    tag: data.tag || "iddaatakip-goal",
+    renotify: true
+  };
+
+  e.waitUntil(
+    self.registration.showNotification(data.title, options)
+  );
+});
+
+self.addEventListener("notificationclick", e => {
+  e.notification.close();
+  const targetUrl = e.notification.data?.url || "/iddaatakip/";
+  e.waitUntil(
+    clients.matchAll({ type: "window", includeUncontrolled: true }).then(windowClients => {
+      for (const client of windowClients) {
+        if (client.url && client.url.includes("iddaatakip") && "focus" in client) {
+          return client.focus();
+        }
+      }
+      if (clients.openWindow) {
+        return clients.openWindow(targetUrl);
+      }
+    })
   );
 });

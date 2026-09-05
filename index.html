@@ -1146,6 +1146,234 @@
         font-size: 0.88rem;
       }
     }
+
+    /* NOTIFICATION BUTTON & MODAL */
+    .notif-btn {
+      position: relative;
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid rgba(255, 255, 255, 0.16);
+      color: #cbd5e1;
+      width: 36px;
+      height: 36px;
+      border-radius: 10px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      flex-shrink: 0;
+    }
+
+    .notif-btn:hover {
+      background: rgba(0, 255, 133, 0.15);
+      border-color: var(--pl-neon);
+      color: var(--pl-neon);
+    }
+
+    .notif-btn.active {
+      background: rgba(0, 255, 133, 0.2);
+      border-color: var(--pl-neon);
+      color: var(--pl-neon);
+      box-shadow: 0 0 12px rgba(0, 255, 133, 0.4);
+    }
+
+    .notif-dot {
+      position: absolute;
+      top: 6px;
+      right: 6px;
+      width: 7px;
+      height: 7px;
+      background: var(--pl-neon);
+      border-radius: 50%;
+      box-shadow: 0 0 8px var(--pl-neon);
+      display: none;
+    }
+
+    .notif-btn.active .notif-dot {
+      display: block;
+    }
+
+    .header-brand-right {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-shrink: 0;
+    }
+
+    /* NOTIFICATION MODAL */
+    .notif-modal-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.75);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 99999;
+      padding: 16px;
+    }
+
+    .notif-modal-card {
+      background: #0f172a;
+      border: 1px solid rgba(0, 255, 133, 0.35);
+      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.8), 0 0 30px rgba(0, 255, 133, 0.15);
+      border-radius: 18px;
+      width: 100%;
+      max-width: 440px;
+      padding: 22px;
+      color: #fff;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      animation: modal-in 0.2s ease-out;
+      box-sizing: border-box;
+    }
+
+    @keyframes modal-in {
+      from { transform: scale(0.95); opacity: 0; }
+      to { transform: scale(1); opacity: 1; }
+    }
+
+    .notif-modal-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+      padding-bottom: 12px;
+    }
+
+    .notif-modal-title {
+      font-size: 1.1rem;
+      font-weight: 800;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: #fff;
+    }
+
+    .notif-modal-close {
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      font-size: 1.5rem;
+      cursor: pointer;
+      line-height: 1;
+      padding: 0 4px;
+    }
+
+    .notif-modal-close:hover {
+      color: #fff;
+    }
+
+    .notif-modal-desc {
+      font-size: 0.86rem;
+      color: var(--text-muted);
+      line-height: 1.45;
+    }
+
+    .notif-status-box {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: rgba(0, 0, 0, 0.35);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 10px;
+      padding: 10px 14px;
+    }
+
+    .notif-status-label {
+      font-size: 0.82rem;
+      color: #94a3b8;
+    }
+
+    .notif-status-val {
+      font-size: 0.82rem;
+      font-weight: 800;
+      color: #fff;
+    }
+
+    .notif-actions {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .notif-action-btn {
+      padding: 11px 16px;
+      border-radius: 10px;
+      font-family: inherit;
+      font-size: 0.9rem;
+      font-weight: 800;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      transition: all 0.2s ease;
+      border: none;
+    }
+
+    .notif-action-btn.primary {
+      background: var(--pl-neon);
+      color: #0b0f19;
+      box-shadow: 0 0 16px rgba(0, 255, 133, 0.4);
+    }
+
+    .notif-action-btn.primary:hover {
+      background: #00e075;
+      transform: translateY(-1px);
+    }
+
+    .notif-action-btn.secondary {
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      color: #fff;
+    }
+
+    .notif-action-btn.secondary:hover {
+      background: rgba(255, 255, 255, 0.15);
+    }
+
+    .notif-server-section {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      border-top: 1px solid rgba(255, 255, 255, 0.08);
+      padding-top: 12px;
+    }
+
+    .notif-server-label {
+      font-size: 0.76rem;
+      color: #94a3b8;
+      font-weight: 600;
+    }
+
+    .notif-server-input {
+      background: rgba(0, 0, 0, 0.45);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      border-radius: 8px;
+      padding: 8px 10px;
+      color: #fff;
+      font-size: 0.84rem;
+      font-family: inherit;
+      outline: none;
+      box-sizing: border-box;
+      width: 100%;
+    }
+
+    .notif-server-input:focus {
+      border-color: var(--pl-neon);
+    }
+
+    .notif-hint {
+      font-size: 0.72rem;
+      color: #64748b;
+      line-height: 1.35;
+    }
   </style>
 </head>
 <body>
@@ -1159,7 +1387,16 @@
             <span class="live-dot"></span> Canlı
           </span>
         </div>
-        <div class="header-meta" id="sub-title">Yükleniyor...</div>
+        <div class="header-brand-right">
+          <div class="header-meta" id="sub-title">Yükleniyor...</div>
+          <button class="notif-btn" id="notif-toggle-btn" onclick="openNotifModal()" title="Gol Bildirimleri">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+              <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+              <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+            </svg>
+            <span class="notif-dot" id="notif-status-dot"></span>
+          </button>
+        </div>
       </div>
 
       <!-- LİG SEÇİM LİSTBOX (Sadece Ligler & Fikstür görünümünde) -->
@@ -1352,6 +1589,7 @@
       updateLiveCounts();
       renderLiveScores();
       initLiveSocket();
+      checkPushSubscription();
     }
 
     function switchMainView(view) {
@@ -2232,8 +2470,225 @@
       }
     }, { once: true });
 
+    // PWA WEB PUSH LOGIC
+    const VAPID_PUBLIC_KEY = "BOMajR0yMBnHtW49PT6werFcmy5VYOW6F7ZV4y3qf1LLUEtvkKm06fK5MKG1vpcCztv8qpA18F7SHtjQ3sJ4nsU";
+    let currentPushSubscription = null;
+
+    function getPushServerUrl() {
+      return localStorage.getItem("iddaatakip_push_server") || "";
+    }
+
+    function savePushServerUrl(url) {
+      if (url) localStorage.setItem("iddaatakip_push_server", url.trim().replace(/\/+$/, ""));
+      else localStorage.removeItem("iddaatakip_push_server");
+    }
+
+    function openNotifModal() {
+      const modal = document.getElementById("notif-modal");
+      if (modal) modal.style.display = "flex";
+      const input = document.getElementById("notif-server-url");
+      if (input) input.value = getPushServerUrl();
+      refreshPushUiState();
+    }
+
+    function closeNotifModal(e) {
+      const modal = document.getElementById("notif-modal");
+      if (modal) modal.style.display = "none";
+    }
+
+    function urlBase64ToUint8Array(base64String) {
+      const padding = '='.repeat((4 - base64String.length % 4) % 4);
+      const base64 = (base64String + padding).replace(/\-/g, '+').replace(/_/g, '/');
+      const rawData = window.atob(base64);
+      const outputArray = new Uint8Array(rawData.length);
+      for (let i = 0; i < rawData.length; ++i) {
+        outputArray[i] = rawData.charCodeAt(i);
+      }
+      return outputArray;
+    }
+
+    async function checkPushSubscription() {
+      if (!("serviceWorker" in navigator) || !("PushManager" in window)) {
+        updatePushBadge(false, "Desteklenmiyor");
+        return null;
+      }
+      try {
+        const reg = await navigator.serviceWorker.ready;
+        const sub = await reg.pushManager.getSubscription();
+        currentPushSubscription = sub;
+        if (sub) {
+          updatePushBadge(true, "Açık (Aktif)");
+        } else {
+          updatePushBadge(false, "Kapalı");
+        }
+        return sub;
+      } catch (err) {
+        console.warn("Push kontrol hatası:", err);
+        updatePushBadge(false, "Hata");
+        return null;
+      }
+    }
+
+    function updatePushBadge(active, text) {
+      const btn = document.getElementById("notif-toggle-btn");
+      const statusText = document.getElementById("notif-status-text");
+      const subBtn = document.getElementById("notif-subscribe-btn");
+      const testBtn = document.getElementById("notif-test-btn");
+
+      if (btn) {
+        if (active) btn.classList.add("active");
+        else btn.classList.remove("active");
+      }
+      if (statusText) {
+        statusText.innerText = text || (active ? "Açık (Aktif)" : "Kapalı");
+        statusText.style.color = active ? "#00ff85" : "#94a3b8";
+      }
+      if (subBtn) {
+        subBtn.innerText = active ? "🔕 Bildirimleri Kapat" : "🔔 Bildirimleri Aç";
+        subBtn.className = active ? "notif-action-btn secondary" : "notif-action-btn primary";
+      }
+      if (testBtn) {
+        testBtn.style.display = active ? "flex" : "none";
+      }
+    }
+
+    function refreshPushUiState() {
+      checkPushSubscription();
+    }
+
+    async function handleSubscribePush() {
+      if (!("Notification" in window) || !("serviceWorker" in navigator) || !("PushManager" in window)) {
+        alert("Tarayıcınız Web Push bildirimlerini desteklemiyor. iOS kullanıyorsanız siteyi 'Ana Ekrana Ekle' yaparak PWA olarak açmalısınız.");
+        return;
+      }
+
+      const subBtn = document.getElementById("notif-subscribe-btn");
+      if (subBtn) subBtn.disabled = true;
+
+      try {
+        const reg = await navigator.serviceWorker.ready;
+        const existingSub = await reg.pushManager.getSubscription();
+
+        if (existingSub) {
+          await existingSub.unsubscribe();
+          currentPushSubscription = null;
+          updatePushBadge(false, "Kapalı");
+          alert("Bildirim aboneliği kapatıldı.");
+        } else {
+          const permission = await Notification.requestPermission();
+          if (permission !== "granted") {
+            alert("Bildirim izni verilmedi. Tarayıcı veya sistem ayarlarından bildirimlere izin vermelisiniz.");
+            updatePushBadge(false, "İzin Verilmedi");
+            if (subBtn) subBtn.disabled = false;
+            return;
+          }
+
+          const newSub = await reg.pushManager.subscribe({
+            userVisibleOnly: true,
+            applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY)
+          });
+          currentPushSubscription = newSub;
+          updatePushBadge(true, "Açık (Aktif)");
+
+          const serverBase = getPushServerUrl() || window.location.origin;
+          const subscribeEndpoint = serverBase.replace(/\/+$/, "") + "/api/subscribe";
+
+          try {
+            await fetch(subscribeEndpoint, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(newSub)
+            });
+            alert("✅ Bildirimler başarıyla açıldı! Canlı maçlarda gol olduğunda kilit ekranınıza bildirim gelecek.");
+          } catch (netErr) {
+            console.warn("Sunucuya bildirim kaydı iletilemedi:", netErr);
+            alert("✅ Bildirim izni cihazınızda açıldı! Sunucuya bağlanıldığında test bildirimi alabilirsiniz.");
+          }
+        }
+      } catch (err) {
+        console.error("Bildirim işlemi hatası:", err);
+        alert("Bildirim açılırken hata oluştu: " + err.message);
+      } finally {
+        if (subBtn) subBtn.disabled = false;
+      }
+    }
+
+    async function handleTestPush() {
+      const serverBase = getPushServerUrl() || window.location.origin;
+      const testEndpoint = serverBase.replace(/\/+$/, "") + "/api/test-push";
+
+      try {
+        const res = await fetch(testEndpoint, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            title: "⚽ Test Bildirimi",
+            body: "İddaa Takip bildirim sistemi kusursuz çalışıyor! 🚀",
+            icon: "icons/icon-192.png"
+          })
+        });
+        if (res.ok) {
+          alert("🚀 Test bildirimi sunucudan gönderildi! Kilit ekranınızı veya bildirim merkezini kontrol edin.");
+        } else {
+          showLocalNotificationFallback();
+        }
+      } catch (err) {
+        showLocalNotificationFallback();
+      }
+    }
+
+    function showLocalNotificationFallback() {
+      if (Notification.permission === "granted") {
+        navigator.serviceWorker.ready.then(reg => {
+          reg.showNotification("⚽ Test Bildirimi (Yerel)", {
+            body: "İddaa Takip bildirim sistemi çalışıyor! (Cihaz bildirimi başarılı)",
+            icon: "icons/icon-192.png"
+          });
+        });
+        alert("Cihazınıza yerel test bildirimi gönderildi!");
+      }
+    }
+
     window.addEventListener("DOMContentLoaded", initApp);
   </script>
+
+  <!-- BİLDİRİM AYARLARI MODAL -->
+  <div class="notif-modal-overlay" id="notif-modal" style="display: none;" onclick="closeNotifModal(event)">
+    <div class="notif-modal-card" onclick="event.stopPropagation()">
+      <div class="notif-modal-header">
+        <div class="notif-modal-title">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#00ff85" stroke-width="2.2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+          Canlı Gol Bildirimleri
+        </div>
+        <button class="notif-modal-close" onclick="closeNotifModal()">&times;</button>
+      </div>
+      <div class="notif-modal-body">
+        <p class="notif-modal-desc">
+          Uygulama tamamen kapalı veya telefon kilitli olsa dahi anlık gol bildirimlerini kilit ekranınızda alın.
+        </p>
+
+        <div class="notif-status-box" style="margin: 12px 0;">
+          <div class="notif-status-label">Bildirim Durumu:</div>
+          <div class="notif-status-val" id="notif-status-text">Kontrol ediliyor...</div>
+        </div>
+
+        <div class="notif-actions">
+          <button class="notif-action-btn primary" id="notif-subscribe-btn" onclick="handleSubscribePush()">
+            🔔 Bildirimleri Aç
+          </button>
+          <button class="notif-action-btn secondary" id="notif-test-btn" onclick="handleTestPush()" style="display: none;">
+            🚀 Test Bildirimi Gönder
+          </button>
+        </div>
+
+        <div class="notif-server-section" style="margin-top: 14px;">
+          <label class="notif-server-label">Push Sunucu Adresi (Opsiyonel / Render / Local):</label>
+          <input type="text" class="notif-server-input" id="notif-server-url" placeholder="http://localhost:8080 veya Render linki" onchange="savePushServerUrl(this.value)" />
+          <span class="notif-hint">Boş bırakılırsa geçerli sunucu kullanılır. Arkadaşlarınız kendi cihazlarından bağlanırken buraya sunucu adresini girebilir.</span>
+        </div>
+      </div>
+    </div>
+  </div>
 
   <script>
     // PWA Service Worker kaydı
