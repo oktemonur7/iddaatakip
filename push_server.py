@@ -284,12 +284,12 @@ def process_match_update(update, is_initial=False):
         m["notified_scores"].add(score_pair)
         min_str = f"{m['minute']}'" if m["minute"] else "Canlı"
         team_str = f" {goal_team}" if goal_team else ""
-        title = f"⚽ GOL!{team_str} ({min_str})"
-        body = f"{m['home_team']} {m['home_score']} - {m['away_score']} {m['away_team']}"
-        log_event(f"GOL TESPİT EDİLDİ: {title} -> {body}")
+        header_line = f"⚽ GOL!{team_str} ({min_str})"
+        score_line = f"{m['home_team']} {m['home_score']} - {m['away_score']} {m['away_team']}"
+        log_event(f"GOL TESPİT EDİLDİ: {header_line} -> {score_line}")
         send_push_for_match(all_identifiers, {
-            "title": title,
-            "body": body,
+            "title": "",
+            "body": f"{header_line}\n{score_line}",
             "icon": "icons/icon-192.png",
             "tag": f"goal-{mid}-{m['home_score']}-{m['away_score']}"
         })
@@ -304,12 +304,12 @@ def process_match_update(update, is_initial=False):
         m["notified_ht"] = True
         ht_h = m["ht_home"] if m["ht_home"] is not None else (m["home_score"] if m["home_score"] is not None else 0)
         ht_a = m["ht_away"] if m["ht_away"] is not None else (m["away_score"] if m["away_score"] is not None else 0)
-        title = "⏸️ İlk Yarı Bitti"
-        body = f"{m['home_team']} {ht_h} - {ht_a} {m['away_team']}"
-        log_event(f"İY BİTTİ: {title} -> {body}")
+        header_line = "⏸️ İlk Yarı Bitti"
+        score_line = f"{m['home_team']} {ht_h} - {ht_a} {m['away_team']}"
+        log_event(f"İY BİTTİ: {header_line} -> {score_line}")
         send_push_for_match(all_identifiers, {
-            "title": title,
-            "body": body,
+            "title": "",
+            "body": f"{header_line}\n{score_line}",
             "icon": "icons/icon-192.png",
             "tag": f"ht-{mid}"
         })
@@ -319,12 +319,12 @@ def process_match_update(update, is_initial=False):
         m["notified_ft"] = True
         h = m["home_score"] if m["home_score"] is not None else 0
         a = m["away_score"] if m["away_score"] is not None else 0
-        title = "🏁 Maç Bitti"
-        body = f"{m['home_team']} {h} - {a} {m['away_team']}"
-        log_event(f"MAÇ BİTTİ: {title} -> {body}")
+        header_line = "🏁 Maç Bitti"
+        score_line = f"{m['home_team']} {h} - {a} {m['away_team']}"
+        log_event(f"MAÇ BİTTİ: {header_line} -> {score_line}")
         send_push_for_match(all_identifiers, {
-            "title": title,
-            "body": body,
+            "title": "",
+            "body": f"{header_line}\n{score_line}",
             "icon": "icons/icon-192.png",
             "tag": f"ft-{mid}"
         })
@@ -337,12 +337,12 @@ def process_match_update(update, is_initial=False):
                 if new_rc_h > m["rc_home"]:
                     m["rc_home"] = new_rc_h
                     min_str = f"{m['minute']}'" if m["minute"] else "Canlı"
-                    title = f"🟥 Kırmızı Kart! {m['home_team']} ({min_str})"
-                    body = f"{m['home_team']} {m.get('home_score',0)} - {m.get('away_score',0)} {m['away_team']}"
-                    log_event(f"KIRMIZI KART: {title}")
+                    header_line = f"🟥 Kırmızı Kart! {m['home_team']} ({min_str})"
+                    score_line = f"{m['home_team']} {m.get('home_score',0)} - {m.get('away_score',0)} {m['away_team']}"
+                    log_event(f"KIRMIZI KART: {header_line}")
                     send_push_for_match(all_identifiers, {
-                        "title": title,
-                        "body": body,
+                        "title": "",
+                        "body": f"{header_line}\n{score_line}",
                         "icon": "icons/icon-192.png",
                         "tag": f"rc-{mid}-{time.time()}"
                     })
@@ -356,12 +356,12 @@ def process_match_update(update, is_initial=False):
                 if new_rc_a > m["rc_away"]:
                     m["rc_away"] = new_rc_a
                     min_str = f"{m['minute']}'" if m["minute"] else "Canlı"
-                    title = f"🟥 Kırmızı Kart! {m['away_team']} ({min_str})"
-                    body = f"{m['home_team']} {m.get('home_score',0)} - {m.get('away_score',0)} {m['away_team']}"
-                    log_event(f"KIRMIZI KART: {title}")
+                    header_line = f"🟥 Kırmızı Kart! {m['away_team']} ({min_str})"
+                    score_line = f"{m['home_team']} {m.get('home_score',0)} - {m.get('away_score',0)} {m['away_team']}"
+                    log_event(f"KIRMIZI KART: {header_line}")
                     send_push_for_match(all_identifiers, {
-                        "title": title,
-                        "body": body,
+                        "title": "",
+                        "body": f"{header_line}\n{score_line}",
                         "icon": "icons/icon-192.png",
                         "tag": f"rc-{mid}-{time.time()}"
                     })
@@ -584,8 +584,8 @@ class RequestHandler(http.server.SimpleHTTPRequestHandler):
                     log_event(f"Yeni abone kaydedildi ({len(favs)} favori): {endpoint[:40]}...")
                     # Send welcome push
                     send_push_to_sub(sub_data, {
-                        "title": "✅ Bildirimler Aktif!",
-                        "body": "Yıldızladığınız (★) maçların gol, devre, maç sonu ve kırmızı kart bildirimleri gelecek.",
+                        "title": "",
+                        "body": "✅ Bildirimler Aktif!\nYıldızladığınız (★) maçların gol, devre, maç sonu ve kırmızı kart bildirimleri gelecek.",
                         "icon": "icons/icon-192.png",
                         "tag": "welcome"
                     })
@@ -614,8 +614,8 @@ class RequestHandler(http.server.SimpleHTTPRequestHandler):
                     pass
 
             payload = custom_payload or {
-                "title": "⭐ Test Bildirimi",
-                "body": "Favori maç bildirim sisteminiz kusursuz çalışıyor! 🚀",
+                "title": "",
+                "body": "⭐ Test Bildirimi\nFavori maç bildirim sisteminiz kusursuz çalışıyor! 🚀",
                 "icon": "icons/icon-192.png",
                 "tag": "test-push"
             }
