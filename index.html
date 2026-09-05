@@ -1123,8 +1123,29 @@
         padding: 2px 7px;
       }
 
+      .header-brand {
+        overflow: hidden;
+      }
+
+      .header-brand-right {
+        gap: 6px;
+        margin-left: auto;
+        flex-shrink: 0;
+      }
+
       .header-meta {
-        font-size: 0.74rem;
+        font-size: 0.72rem;
+        max-width: 100px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+
+      .notif-btn {
+        width: 32px;
+        height: 32px;
+        border-radius: 8px;
+        flex-shrink: 0;
       }
 
       .nav-tab-btn {
@@ -1591,6 +1612,13 @@
       renderLiveScores();
       initLiveSocket();
       checkPushSubscription();
+
+      // Mobilde uygulamayı doğrudan Canlı Skorlar > Favorilerim sayfasıyla aç
+      const isMobile = window.innerWidth <= 768 || /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent);
+      if (isMobile) {
+        switchMainView("livescores");
+        filterLiveStatus("favorites");
+      }
     }
 
     function switchMainView(view) {
@@ -2232,7 +2260,11 @@
       });
 
       if (!filtered.length) {
-        container.innerHTML = "<div class='loading-state'>Seçilen kriterde maç bulunamadı.</div>";
+        if (currentLiveFilter === "favorites") {
+          container.innerHTML = "<div class='loading-state'>⭐ Henüz favori maç eklemediniz.<br><span style='font-size:0.82rem; color:#94a3b8; display:inline-block; margin-top:6px;'>Tüm Maçlar sekmesinden takip etmek istediğiniz maçların yanındaki ★ simgesine dokunun.</span></div>";
+        } else {
+          container.innerHTML = "<div class='loading-state'>Seçilen kriterde maç bulunamadı.</div>";
+        }
         return;
       }
 
@@ -2693,8 +2725,8 @@
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            title: "İddaa Takip",
-            body: "⭐ Test Bildirimi\nFavori maç bildirim sisteminiz kusursuz çalışıyor! 🚀",
+            title: "⭐ Test Bildirimi",
+            body: "Favori maç bildirim sisteminiz kusursuz çalışıyor! 🚀",
             icon: "icons/icon-192.png"
           })
         });
@@ -2714,8 +2746,8 @@
     function showLocalNotificationFallback() {
       if (Notification.permission === "granted") {
         navigator.serviceWorker.ready.then(reg => {
-          reg.showNotification("İddaa Takip", {
-            body: "⭐ Test Bildirimi (Yerel)\nFavori maç bildirim sisteminiz kusursuz çalışıyor! 🚀",
+          reg.showNotification("⭐ Test Bildirimi", {
+            body: "Favori maç bildirim sisteminiz kusursuz çalışıyor! 🚀",
             icon: "icons/icon-192.png"
           });
         });

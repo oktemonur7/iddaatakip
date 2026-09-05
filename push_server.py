@@ -199,9 +199,13 @@ def process_match_update(update, is_initial=False):
         "minute": "",
         "rc_home": 0,
         "rc_away": 0,
+        "notified_scores": set(),
         "notified_ht": False,
         "notified_ft": False
     })
+
+    if "notified_scores" not in m:
+        m["notified_scores"] = set()
 
     if m["home_team"] == "Ev Sahibi" and cached_names[0] != "Ev Sahibi":
         m["home_team"] = cached_names[0]
@@ -216,7 +220,6 @@ def process_match_update(update, is_initial=False):
 
     all_identifiers = match_ids + [m["home_team"], m["away_team"]]
 
-    # 1. GOL KONTROLÜ
     new_home = update.get("fts_A")
     new_away = update.get("fts_B")
 
@@ -232,6 +235,8 @@ def process_match_update(update, is_initial=False):
         if new_away is not None:
             try: m["away_score"] = int(new_away)
             except ValueError: pass
+        if m["home_score"] is not None and m["away_score"] is not None:
+            m["notified_scores"].add((m["home_score"], m["away_score"]))
         if update.get("hts_A") is not None: m["ht_home"] = update["hts_A"]
         if update.get("hts_B") is not None: m["ht_away"] = update["hts_B"]
         m["status"] = new_status
@@ -242,77 +247,84 @@ def process_match_update(update, is_initial=False):
             m["notified_ft"] = True
         return
 
+    # 1. GOL KONTROLÜ
     goal_team = ""
     goal_scored = False
+
+    new_h = None
+    new_a = None
     if new_home is not None:
-        try:
-            new_h = int(new_home)
-            if m["home_score"] is not None and new_h > m["home_score"]:
-                goal_scored = True
-                goal_team = m["home_team"]
-            m["home_score"] = new_h
-        except ValueError:
-            pass
-
+        try: new_h = int(new_home)
+        except ValueError: pass
     if new_away is not None:
-        try:
-            new_a = int(new_away)
-            if m["away_score"] is not None and new_a > m["away_score"]:
-                goal_scored = True
-                goal_team = m["away_team"]
-            m["away_score"] = new_a
-        except ValueError:
-            pass
+        try: new_a = int(new_away)
+        except ValueError: pass
 
-    if goal_scored:
+    # Asla skoru geri düşürme (out-of-order delta veya çift event koruması)
+    if new_h is not None and m["home_score"] is not None and new_h < m["home_score"]:
+        new_h = m["home_score"]
+    if new_a is not None and m["away_score"] is not None and new_a < m["away_score"]:
+        new_a = m["away_score"]
+
+    if new_h is not None:
+        if m["home_score"] is not None and new_h > m["home_score"]:
+            goal_scored = True
+            goal_team = m["home_team"]
+        m["home_score"] = new_h
+
+    if new_a is not None:
+        if m["away_score"] is not None and new_a > m["away_score"]:
+            goal_scored = True
+            goal_team = m["away_team"]
+        m["away_score"] = new_a
+
+    # DEDUPLICATION: Aynı skor için arka arkaya tekrar bildirim gitmesini engelle
+    score_pair = (m["home_score"], m["away_score"])
+    if goal_scored and score_pair not in m["notified_scores"]:
+        m["notified_scores"].add(score_pair)
         min_str = f"{m['minute']}'" if m["minute"] else "Canlı"
         team_str = f" {goal_team}" if goal_team else ""
-        header_line = f"⚽ GOL!{team_str} ({min_str})"
-        score_line = f"{m['home_team']} {m['home_score']} - {m['away_score']} {m['away_team']}"
-        log_event(f"GOL TESPİT EDİLDİ: {header_line} -> {score_line}")
+        title = f"⚽ GOL!{team_str} ({min_str})"
+        body = f"{m['home_team']} {m['home_score']} - {m['away_score']} {m['away_team']}"
+        log_event(f"GOL TESPİT EDİLDİ: {title} -> {body}")
         send_push_for_match(all_identifiers, {
-            "title": "İddaa Takip",
-            "body": f"{header_line}\n{score_line}",
+            "title": title,
+            "body": body,
             "icon": "icons/icon-192.png",
             "tag": f"goal-{mid}-{m['home_score']}-{m['away_score']}"
         })
 
     # 2. İLK YARI BİTTİ KONTROLÜ
-    new_status = str(update.get("status") or "").strip()
-    new_period = str(update.get("period") or "").strip()
-
     if update.get("hts_A") is not None:
         m["ht_home"] = update["hts_A"]
     if update.get("hts_B") is not None:
         m["ht_away"] = update["hts_B"]
 
-    is_ht = new_period in ("Half Time", "Devre Arası", "HT") or new_status in ("Half Time", "Devre Arası", "HT")
     if is_ht and not m["notified_ht"]:
         m["notified_ht"] = True
         ht_h = m["ht_home"] if m["ht_home"] is not None else (m["home_score"] if m["home_score"] is not None else 0)
         ht_a = m["ht_away"] if m["ht_away"] is not None else (m["away_score"] if m["away_score"] is not None else 0)
-        header_line = "⏸️ İlk Yarı Bitti"
-        score_line = f"{m['home_team']} {ht_h} - {ht_a} {m['away_team']}"
-        log_event(f"İY BİTTİ: {score_line}")
+        title = "⏸️ İlk Yarı Bitti"
+        body = f"{m['home_team']} {ht_h} - {ht_a} {m['away_team']}"
+        log_event(f"İY BİTTİ: {title} -> {body}")
         send_push_for_match(all_identifiers, {
-            "title": "İddaa Takip",
-            "body": f"{header_line}\n{score_line}",
+            "title": title,
+            "body": body,
             "icon": "icons/icon-192.png",
             "tag": f"ht-{mid}"
         })
 
     # 3. MAÇ BİTTİ KONTROLÜ
-    is_ft = new_status.lower() in ("played", "ms", "ft", "finished", "bitti") or new_period.lower() in ("played", "ms", "ft", "finished")
     if is_ft and not m["notified_ft"]:
         m["notified_ft"] = True
         h = m["home_score"] if m["home_score"] is not None else 0
         a = m["away_score"] if m["away_score"] is not None else 0
-        header_line = "🏁 Maç Bitti"
-        score_line = f"{m['home_team']} {h} - {a} {m['away_team']}"
-        log_event(f"MAÇ BİTTİ: {score_line}")
+        title = "🏁 Maç Bitti"
+        body = f"{m['home_team']} {h} - {a} {m['away_team']}"
+        log_event(f"MAÇ BİTTİ: {title} -> {body}")
         send_push_for_match(all_identifiers, {
-            "title": "İddaa Takip",
-            "body": f"{header_line}\n{score_line}",
+            "title": title,
+            "body": body,
             "icon": "icons/icon-192.png",
             "tag": f"ft-{mid}"
         })
@@ -325,12 +337,12 @@ def process_match_update(update, is_initial=False):
                 if new_rc_h > m["rc_home"]:
                     m["rc_home"] = new_rc_h
                     min_str = f"{m['minute']}'" if m["minute"] else "Canlı"
-                    header_line = f"🟥 Kırmızı Kart! {m['home_team']} ({min_str})"
-                    score_line = f"{m['home_team']} {m.get('home_score',0)} - {m.get('away_score',0)} {m['away_team']}"
-                    log_event(f"KIRMIZI KART: {header_line}")
+                    title = f"🟥 Kırmızı Kart! {m['home_team']} ({min_str})"
+                    body = f"{m['home_team']} {m.get('home_score',0)} - {m.get('away_score',0)} {m['away_team']}"
+                    log_event(f"KIRMIZI KART: {title}")
                     send_push_for_match(all_identifiers, {
-                        "title": "İddaa Takip",
-                        "body": f"{header_line}\n{score_line}",
+                        "title": title,
+                        "body": body,
                         "icon": "icons/icon-192.png",
                         "tag": f"rc-{mid}-{time.time()}"
                     })
@@ -344,12 +356,12 @@ def process_match_update(update, is_initial=False):
                 if new_rc_a > m["rc_away"]:
                     m["rc_away"] = new_rc_a
                     min_str = f"{m['minute']}'" if m["minute"] else "Canlı"
-                    header_line = f"🟥 Kırmızı Kart! {m['away_team']} ({min_str})"
-                    score_line = f"{m['home_team']} {m.get('home_score',0)} - {m.get('away_score',0)} {m['away_team']}"
-                    log_event(f"KIRMIZI KART: {header_line}")
+                    title = f"🟥 Kırmızı Kart! {m['away_team']} ({min_str})"
+                    body = f"{m['home_team']} {m.get('home_score',0)} - {m.get('away_score',0)} {m['away_team']}"
+                    log_event(f"KIRMIZI KART: {title}")
                     send_push_for_match(all_identifiers, {
-                        "title": "İddaa Takip",
-                        "body": f"{header_line}\n{score_line}",
+                        "title": title,
+                        "body": body,
                         "icon": "icons/icon-192.png",
                         "tag": f"rc-{mid}-{time.time()}"
                     })
@@ -572,8 +584,8 @@ class RequestHandler(http.server.SimpleHTTPRequestHandler):
                     log_event(f"Yeni abone kaydedildi ({len(favs)} favori): {endpoint[:40]}...")
                     # Send welcome push
                     send_push_to_sub(sub_data, {
-                        "title": "İddaa Takip",
-                        "body": "✅ Bildirimler Aktif!\nYıldızladığınız (★) maçların gol, devre, maç sonu ve kırmızı kart bildirimleri gelecek.",
+                        "title": "✅ Bildirimler Aktif!",
+                        "body": "Yıldızladığınız (★) maçların gol, devre, maç sonu ve kırmızı kart bildirimleri gelecek.",
                         "icon": "icons/icon-192.png",
                         "tag": "welcome"
                     })
@@ -602,8 +614,8 @@ class RequestHandler(http.server.SimpleHTTPRequestHandler):
                     pass
 
             payload = custom_payload or {
-                "title": "İddaa Takip",
-                "body": "⭐ Test Bildirimi\nFavori maç bildirim sisteminiz kusursuz çalışıyor! 🚀",
+                "title": "⭐ Test Bildirimi",
+                "body": "Favori maç bildirim sisteminiz kusursuz çalışıyor! 🚀",
                 "icon": "icons/icon-192.png",
                 "tag": "test-push"
             }
