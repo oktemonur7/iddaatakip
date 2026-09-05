@@ -19,6 +19,24 @@ LEAGUES = [
         "url": "https://www.sahadan.com/lig/trendyol-1-lig/2o9svokc5s7diish3ycrzk7jm?round_id=95268"
     },
     {
+        "id": "sampiyonlar-ligi",
+        "name": "Şampiyonlar Ligi",
+        "country": "Avrupa",
+        "url": "https://www.sahadan.com/lig/sampiyonlar-ligi/4oogyu6o156iphvdvphwpck10?round_id=95533"
+    },
+    {
+        "id": "avrupa-ligi",
+        "name": "Avrupa Ligi",
+        "country": "Avrupa",
+        "url": "https://www.sahadan.com/lig/avrupa-ligi/4c1nfi2j1m731hcay25fcgndq?round_id=94654"
+    },
+    {
+        "id": "konferans-ligi",
+        "name": "Konferans Ligi",
+        "country": "Avrupa",
+        "url": "https://www.sahadan.com/lig/konferans-ligi/c7b8o53flg36wbuevfzy3lb10?round_id=95377"
+    },
+    {
         "id": "premier-lig-en",
         "name": "Premier Lig",
         "country": "İngiltere",
@@ -269,7 +287,7 @@ def parse_sahadan_league(target_url, max_retries=3):
     return None
 
 def fetch_live_scores_today():
-    print("Sahadan.com üzerinden günün canlı maçları (16 Lig) taranıyor...")
+    print(f"Sahadan.com üzerinden günün canlı maçları ({len(LEAGUES)} Lig/Kupa) taranıyor...")
     league_uuids = {}
     for l in LEAGUES:
         url_path = l["url"].split("?")[0]
@@ -377,7 +395,7 @@ def fetch_live_scores_today():
                                         "half_time_home": m_item.get("hts_A"),
                                         "half_time_away": m_item.get("hts_B"),
                                     })
-            print(f" ✓ Canlı skor bülteninden 16 lige ait toplam {len(today_matches)} maç listelendi.")
+            print(f" ✓ Canlı skor bülteninden {len(LEAGUES)} lige ait toplam {len(today_matches)} maç listelendi.")
     except Exception as e:
         print(f" ! Canlı sonuçlar taranırken hata: {e}")
 
@@ -577,7 +595,7 @@ def match_odds(tA, tB, clean_dict):
     return None
 
 def build_desktop_html():
-    print("Sahadan.com üzerinden 16 ligin verileri taranıyor...")
+    print(f"Sahadan.com üzerinden {len(LEAGUES)} ligin verileri taranıyor...")
     cached_data = {}
     if os.path.exists(CACHE_FILE):
         try:
@@ -605,7 +623,7 @@ def build_desktop_html():
                 print(f" ✗ {name} ({country}): Alınamadı!")
         time.sleep(0.3)
 
-    # Collect all team names across 16 leagues to optimize iddaa querying
+    # Collect all team names across leagues to optimize iddaa querying
     all_target_teams = set()
     for lid, ldata in cached_data.items():
         for s in ldata.get("standings", []):
@@ -624,7 +642,7 @@ def build_desktop_html():
                         matched_odds += 1
         print(f" ✓ Toplam {matched_odds} maça İddaa oranları (MS, 2.5 Alt/Üst, KG) eksiksiz eşleştirildi.")
 
-    # Canlı Skorlar (Bugün 16 ligde oynanacak/oynanan tüm maçlar)
+    # Canlı Skorlar (Bugün liglerde oynanacak/oynanan tüm maçlar)
     today_live_matches = fetch_live_scores_today()
     if clean_odds_dict and today_live_matches:
         for tm in today_live_matches:
@@ -692,7 +710,7 @@ def build_desktop_html():
     print(f"2. /Users/onur/Desktop/premier_lig.html")
     print(f"3. {OUTPUT_HTML} (GitHub Pages)")
 
-    print(f"\nİşlem tamamlandı! 16/16 lig hazır:")
+    print(f"\nİşlem tamamlandı! {len(cached_data)}/{len(LEAGUES)} lig ve turnuva hazır:")
     print(f"- {DESKTOP_HTML}")
 
 if __name__ == "__main__":

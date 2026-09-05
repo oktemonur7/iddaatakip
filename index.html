@@ -8,7 +8,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-title" content="İddaa Takip" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-  <meta name="description" content="16 ligde canlı skorlar, puan durumu ve iddaa oranları" />
+  <meta name="description" content="19 lig ve Avrupa kupalarında canlı skorlar, puan durumu ve iddaa oranları" />
   <link rel="manifest" href="manifest.json" />
   <link rel="apple-touch-icon" href="icons/icon-192.png" />
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -1784,7 +1784,7 @@
         btnLeagues.classList.remove("active");
         btnLive.classList.add("active");
         leagueSelector.style.display = "none";
-        subTitle.innerText = `Bugün 16 Ligde ${liveScoresList.length} Maç`;
+        subTitle.innerText = `Bugün ${allLeaguesState.leagues_list?.length || 19} Ligde ${liveScoresList.length} Maç`;
         renderLiveScores();
       }
     }
@@ -2373,7 +2373,7 @@
       if (!container) return;
 
       if (!liveScoresList.length) {
-        container.innerHTML = "<div class='loading-state'>16 ligde bugün için planlanmış maç bulunamadı.</div>";
+        container.innerHTML = `<div class='loading-state'>${allLeaguesState.leagues_list?.length || 19} ligde bugün için planlanmış maç bulunamadı.</div>`;
         return;
       }
 
