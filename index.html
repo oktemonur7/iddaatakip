@@ -2,9 +2,11 @@
 <html lang="tr">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
   <title>İddaa Takip - Canlı Skorlar & Puan Durumu</title>
   <meta name="theme-color" content="#00ff85" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="description" content="16 ligde canlı skorlar, puan durumu ve iddaa oranları" />
   <link rel="manifest" href="manifest.json" />
   <link rel="apple-touch-icon" href="icons/icon-192.png" />
@@ -32,6 +34,12 @@
       --loss: #ef4444;
     }
 
+    html {
+      box-sizing: border-box;
+      max-width: 100%;
+      overflow-x: hidden;
+    }
+
     * {
       box-sizing: border-box;
       margin: 0;
@@ -40,6 +48,9 @@
 
     body {
       min-height: 100vh;
+      min-height: -webkit-fill-available;
+      max-width: 100%;
+      overflow-x: hidden;
       background-color: var(--bg);
       background-image: 
         radial-gradient(at 0% 0%, rgba(55, 0, 60, 0.55) 0px, transparent 55%),
@@ -50,33 +61,43 @@
       font-family: 'Outfit', -apple-system, BlinkMacSystemFont, sans-serif;
       font-size: 14px;
       padding: 18px 22px;
+      padding-top: max(18px, env(safe-area-inset-top));
+      padding-right: max(22px, env(safe-area-inset-right));
+      padding-bottom: max(18px, env(safe-area-inset-bottom));
+      padding-left: max(22px, env(safe-area-inset-left));
     }
 
     .app-container {
       max-width: 1580px;
+      width: 100%;
       margin: 0 auto;
       display: flex;
       flex-direction: column;
       gap: 16px;
+      box-sizing: border-box;
     }
 
     /* TOP HEADER & CONTROLS */
     header {
       display: flex;
       align-items: center;
-      justify-content: space-between;
+      gap: 16px;
       padding: 14px 22px;
       background: var(--card-bg);
       backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
       border: 1px solid rgba(0, 255, 133, 0.22);
       border-radius: 16px;
       box-shadow: 0 10px 36px rgba(0, 0, 0, 0.5), 0 0 20px rgba(0, 255, 133, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+      box-sizing: border-box;
+      width: 100%;
     }
 
-    .header-left {
+    .header-brand {
       display: flex;
       align-items: center;
-      gap: 16px;
+      gap: 14px;
+      flex-shrink: 0;
     }
 
     .header-title {
@@ -88,6 +109,7 @@
       align-items: center;
       gap: 10px;
       text-shadow: 0 0 12px rgba(255, 255, 255, 0.3);
+      white-space: nowrap;
     }
 
     .live-indicator {
@@ -130,6 +152,9 @@
       border-radius: 10px;
       padding: 5px 14px;
       box-shadow: 0 0 12px rgba(0, 255, 133, 0.1);
+      flex-shrink: 0;
+      max-width: 320px;
+      box-sizing: border-box;
     }
 
     .league-select-label {
@@ -138,6 +163,7 @@
       font-weight: 700;
       text-transform: uppercase;
       letter-spacing: 0.04em;
+      flex-shrink: 0;
     }
 
     .league-selector {
@@ -150,6 +176,8 @@
       cursor: pointer;
       font-weight: 700;
       padding: 3px 0;
+      max-width: 250px;
+      text-overflow: ellipsis;
     }
 
     .league-selector option {
@@ -162,6 +190,7 @@
       font-size: 0.84rem;
       color: var(--text-muted);
       font-weight: 600;
+      white-space: nowrap;
     }
 
     /* MAIN SPLIT: SOLDA PUAN DURUMU, SAĞDA FİKSTÜR */
@@ -643,6 +672,8 @@
       padding: 4px;
       border-radius: 12px;
       border: 1px solid rgba(255, 255, 255, 0.08);
+      margin-left: auto;
+      flex-shrink: 0;
     }
 
     .nav-tab-btn {
@@ -1012,29 +1043,131 @@
       text-align: right;
       flex-shrink: 0;
     }
+
+    /* RESPONSIVE HEADER & PWA STYLES */
+    @media (max-width: 960px) {
+      body {
+        padding: 12px 14px;
+        padding-top: max(12px, env(safe-area-inset-top));
+        padding-right: max(14px, env(safe-area-inset-right));
+        padding-bottom: max(14px, env(safe-area-inset-bottom));
+        padding-left: max(14px, env(safe-area-inset-left));
+      }
+
+      header {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 12px;
+        padding: 12px 14px;
+        border-radius: 14px;
+      }
+
+      .header-brand {
+        order: 1;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        width: 100%;
+      }
+
+      .nav-tabs {
+        order: 2;
+        margin-left: 0;
+        width: 100%;
+        display: flex;
+        box-sizing: border-box;
+      }
+
+      .nav-tab-btn {
+        flex: 1;
+        justify-content: center;
+        padding: 8px 10px;
+      }
+
+      .league-select-wrapper {
+        order: 3;
+        width: 100%;
+        max-width: 100%;
+        box-sizing: border-box;
+        justify-content: space-between;
+      }
+
+      .league-selector {
+        flex: 1;
+        max-width: none;
+        width: 100%;
+      }
+    }
+
+    @media (max-width: 480px) {
+      body {
+        padding: 10px 10px calc(12px + env(safe-area-inset-bottom)) 10px;
+        padding-top: max(10px, env(safe-area-inset-top));
+        padding-right: max(10px, env(safe-area-inset-right));
+        padding-left: max(10px, env(safe-area-inset-left));
+      }
+
+      header {
+        padding: 10px 12px;
+        gap: 10px;
+        border-radius: 12px;
+      }
+
+      .header-title {
+        font-size: 1.1rem;
+        gap: 6px;
+      }
+
+      .live-indicator {
+        font-size: 0.68rem;
+        padding: 2px 7px;
+      }
+
+      .header-meta {
+        font-size: 0.74rem;
+      }
+
+      .nav-tab-btn {
+        font-size: 0.8rem;
+        padding: 7px 6px;
+        gap: 6px;
+      }
+
+      .nav-tab-btn svg {
+        width: 14px;
+        height: 14px;
+      }
+
+      .league-select-wrapper {
+        padding: 6px 10px;
+      }
+
+      .league-selector {
+        font-size: 0.88rem;
+      }
+    }
   </style>
 </head>
 <body>
   <div class="app-container">
     <!-- TOP HEADER -->
     <header>
-      <div class="header-left">
+      <div class="header-brand">
         <div class="header-title">
           Futbol Ligleri
           <span class="live-indicator">
             <span class="live-dot"></span> Canlı
           </span>
         </div>
-
-        <!-- LİG SEÇİM LİSTBOX (Sadece Ligler & Fikstür görünümünde) -->
-        <div class="league-select-wrapper" id="league-select-container">
-          <span class="league-select-label">Lig:</span>
-          <select class="league-selector" id="league-select" onchange="onLeagueChanged(this.value)">
-            <!-- JS ile dinamik dolacak -->
-          </select>
-        </div>
-
         <div class="header-meta" id="sub-title">Yükleniyor...</div>
+      </div>
+
+      <!-- LİG SEÇİM LİSTBOX (Sadece Ligler & Fikstür görünümünde) -->
+      <div class="league-select-wrapper" id="league-select-container">
+        <span class="league-select-label">Lig:</span>
+        <select class="league-selector" id="league-select" onchange="onLeagueChanged(this.value)">
+          <!-- JS ile dinamik dolacak -->
+        </select>
       </div>
 
       <!-- MODÜL SEKMELERİ (LİGLER & FİKSTÜR / CANLI SKORLAR) -->
