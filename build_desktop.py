@@ -667,9 +667,21 @@ def build_desktop_html():
             f.write(modified_html)
 
     # GitHub Pages çıktısı
-    os.makedirs(os.path.dirname(OUTPUT_HTML), exist_ok=True)
+    dist_dir = os.path.dirname(OUTPUT_HTML)
+    os.makedirs(dist_dir, exist_ok=True)
     with open(OUTPUT_HTML, "w", encoding="utf-8") as f:
         f.write(modified_html)
+
+    # PWA dosyalarını dist/ klasörüne kopyala
+    import shutil
+    for fname in ["manifest.json", "sw.js"]:
+        src = os.path.join(APP_DIR, fname)
+        if os.path.exists(src):
+            shutil.copy2(src, os.path.join(dist_dir, fname))
+    icons_src = os.path.join(APP_DIR, "icons")
+    icons_dst = os.path.join(dist_dir, "icons")
+    if os.path.isdir(icons_src):
+        shutil.copytree(icons_src, icons_dst, dirs_exist_ok=True)
 
     print(f"\nİşlem başarıyla tamamlandı! Standalone Neon Lig Tablosu:")
     print(f"1. {DESKTOP_HTML}")
