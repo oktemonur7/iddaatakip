@@ -1421,7 +1421,7 @@
           </span>
         </div>
         <div class="header-brand-right">
-          <div class="header-meta" id="sub-title">Yükleniyor...</div>
+          <div class="header-meta" id="sub-title" style="display: none;"></div>
           <button class="notif-btn" id="notif-toggle-btn" onclick="openNotifModal()" title="Gol Bildirimleri">
             <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
               <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
@@ -1775,16 +1775,22 @@
         btnLeagues.classList.add("active");
         btnLive.classList.remove("active");
         leagueSelector.style.display = "flex";
-        const teamCount = currentLeagueData?.standings?.length || 0;
-        const weekCount = currentLeagueData?.weeks?.length || 0;
-        subTitle.innerText = `${teamCount} Takım • ${weekCount} Hafta`;
+        if (subTitle) {
+          subTitle.style.display = "block";
+          const teamCount = currentLeagueData?.standings?.length || 0;
+          const weekCount = currentLeagueData?.weeks?.length || 0;
+          subTitle.innerText = `${teamCount} Takım • ${weekCount} Hafta`;
+        }
       } else {
         leaguesView.style.display = "none";
         liveView.style.display = "flex";
         btnLeagues.classList.remove("active");
         btnLive.classList.add("active");
         leagueSelector.style.display = "none";
-        subTitle.innerText = `Bugün ${allLeaguesState.leagues_list?.length || 19} Ligde ${liveScoresList.length} Maç`;
+        if (subTitle) {
+          subTitle.innerText = "";
+          subTitle.style.display = "none";
+        }
         renderLiveScores();
       }
     }
@@ -1820,9 +1826,16 @@
       }
 
       selectedWeekIndex = currentLeagueData.current_week_index || 0;
-      const teamCount = currentLeagueData.standings?.length || 0;
-      const weekCount = currentLeagueData.weeks?.length || 0;
-      document.getElementById("sub-title").innerText = `${teamCount} Takım • ${weekCount} Hafta`;
+      const subTitle = document.getElementById("sub-title");
+      if (subTitle) {
+        if (currentMainView === "leagues") {
+          subTitle.style.display = "block";
+          subTitle.innerText = `${teamCount} Takım • ${weekCount} Hafta`;
+        } else {
+          subTitle.innerText = "";
+          subTitle.style.display = "none";
+        }
+      }
 
       renderStandings();
       renderWeekSelector();
