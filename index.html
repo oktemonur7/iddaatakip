@@ -1546,6 +1546,22 @@
     let liveScoresList = allLeaguesState.live_scores_today || [];
     let liveScoresMap = {}; // match_id -> match object
 
+    function isMatchPlayed(m) {
+      if (!m) return false;
+      const s = (m.status || "").toString().toLowerCase().trim();
+      const p = (m.period || "").toString().toLowerCase().trim();
+      return ["played", "ms", "ft", "finished", "bitti"].includes(s) ||
+             ["played", "ms", "ft", "finished", "full time", "fulltime", "maç bitti"].includes(p);
+    }
+
+    function isMatchLive(m) {
+      if (!m) return false;
+      if (isMatchPlayed(m)) return false;
+      const s = (m.status || "").toString().toLowerCase().trim();
+      const p = (m.period || "").toString().toLowerCase().trim();
+      return s === "playing" || s === "live" || p === "half time" || p === "devre arası" || p === "ht";
+    }
+
     // Favoriler (localStorage'da saklanır)
     let favoriteMatchIds = new Set();
     try {
@@ -1907,8 +1923,8 @@
         const awayScore = m.away_score !== null && m.away_score !== undefined ? m.away_score : '-';
 
         let statusText = "Fikstür";
-        if (m.status === "Played") statusText = "MS";
-        else if (m.status === "Playing" || m.status === "Live") statusText = "Canlı";
+        if (isMatchPlayed(m)) statusText = "MS";
+        else if (isMatchLive(m)) statusText = "Canlı";
 
         let dateStr = "";
         if (m.date_time) {
@@ -1925,9 +1941,9 @@
         }
 
         let statusBadgeHtml = "";
-        if (m.status === "Played") {
+        if (isMatchPlayed(m)) {
           statusBadgeHtml = `<span class="match-status-ms">MS</span>`;
-        } else if (m.status === "Playing" || m.status === "Live") {
+        } else if (isMatchLive(m)) {
           statusBadgeHtml = `<span class="match-status-live">● CANLI</span>`;
         }
 
@@ -2105,9 +2121,8 @@
       let favCount = 0;
 
       liveScoresList.forEach(m => {
-        const s = (m.status || "").toLowerCase();
-        if (s === "playing") liveCount++;
-        else if (s === "played") playedCount++;
+        if (isMatchLive(m)) liveCount++;
+        else if (isMatchPlayed(m)) playedCount++;
         else fixtureCount++;
 
         if (favoriteMatchIds.has(String(m.match_id))) {
@@ -2167,9 +2182,8 @@
     }
 
     function renderMatchRow(m, isFav) {
-      const status = (m.status || "").toLowerCase();
-      const isLive = status === "playing";
-      const isPlayed = status === "played";
+      const isLive = isMatchLive(m);
+      const isPlayed = isMatchPlayed(m);
       
       let badgeHtml = "";
       let badgeClass = "fixture";
@@ -2304,12 +2318,11 @@
 
       // Filtreleme
       let filtered = liveScoresList.filter(m => {
-        const s = (m.status || "").toLowerCase();
         const isFav = favoriteMatchIds.has(String(m.match_id));
         if (currentLiveFilter === "favorites") return isFav;
-        if (currentLiveFilter === "live") return s === "playing";
-        if (currentLiveFilter === "played") return s === "played";
-        if (currentLiveFilter === "fixture") return s === "fixture" || (s !== "playing" && s !== "played");
+        if (currentLiveFilter === "live") return isMatchLive(m);
+        if (currentLiveFilter === "played") return isMatchPlayed(m);
+        if (currentLiveFilter === "fixture") return !isMatchLive(m) && !isMatchPlayed(m);
         return true;
       });
 
@@ -2335,8 +2348,8 @@
       });
 
       favMatches.sort((a, b) => {
-        const aPlayed = (a.status || "").toLowerCase() === "played";
-        const bPlayed = (b.status || "").toLowerCase() === "played";
+        const aPlayed = isMatchPlayed(a);
+        const bPlayed = isMatchPlayed(b);
         if (aPlayed && !bPlayed) return 1;
         if (!aPlayed && bPlayed) return -1;
         return compareMatchTimes(a, b);
@@ -2479,7 +2492,17 @@
       if (update.hts_A !== undefined && update.hts_A !== null) m.half_time_home = update.hts_A;
       if (update.hts_B !== undefined && update.hts_B !== null) m.half_time_away = update.hts_B;
       let statusChanged = false;
-      if (update.status && update.status !== m.status) {
+      const updStatus = (update.status || "").toString().toLowerCase().trim();
+      const updPeriod = (update.period || "").toString().toLowerCase().trim();
+      const updateIsFT = ["played", "ms", "ft", "finished", "bitti"].includes(updStatus) ||
+                         ["played", "ms", "ft", "finished", "full time", "fulltime", "maç bitti"].includes(updPeriod);
+
+      if (updateIsFT) {
+        if (m.status !== "Played") {
+          m.status = "Played";
+          statusChanged = true;
+        }
+      } else if (update.status && update.status !== m.status) {
         m.status = update.status;
         statusChanged = true;
       }
@@ -2492,9 +2515,8 @@
       const badgeEl = document.getElementById(`live-badge-${mid}`);
       const htEl = document.getElementById(`live-ht-${mid}`);
 
-      const s = (m.status || "").toLowerCase();
-      const isLive = s === "playing";
-      const isPlayed = s === "played";
+      const isLive = isMatchLive(m);
+      const isPlayed = isMatchPlayed(m);
 
       if (scoreEl) {
         if (isLive || isPlayed) {
@@ -2569,6 +2591,16 @@
           if (isLive) fixScoreBox.classList.add("live-active");
           else fixScoreBox.classList.remove("live-active");
         }
+        const fixBadge = fixRow.querySelector(".match-status-ms, .match-status-live");
+        if (fixBadge) {
+          if (isPlayed) {
+            fixBadge.className = "match-status-ms";
+            fixBadge.innerText = "MS";
+          } else if (isLive) {
+            fixBadge.className = "match-status-live";
+            fixBadge.innerText = "● CANLI";
+          }
+        }
       }
 
       updateLiveCounts();
@@ -2589,7 +2621,7 @@
             const changed = applyLiveMatchUpdate(item);
             if (changed) anyStatusChanged = true;
           });
-          if (anyStatusChanged && (currentLiveFilter === "live" || currentLiveFilter === "played" || currentLiveFilter === "fixture")) {
+          if (anyStatusChanged) {
             renderLiveScores();
           }
           const connDot = document.getElementById("live-conn-dot");
@@ -2646,7 +2678,7 @@
               const changed = applyLiveMatchUpdate(item);
               if (changed) anyStatusChanged = true;
             });
-            if (anyStatusChanged && (currentLiveFilter === "live" || currentLiveFilter === "played" || currentLiveFilter === "fixture")) {
+            if (anyStatusChanged) {
               renderLiveScores();
             }
           });

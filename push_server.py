@@ -226,7 +226,15 @@ def process_match_update(update, is_initial=False):
     new_status = str(update.get("status") or "").strip()
     new_period = str(update.get("period") or "").strip()
     is_ht = new_period in ("Half Time", "Devre Arası", "HT") or new_status in ("Half Time", "Devre Arası", "HT")
-    is_ft = new_status.lower() in ("played", "ms", "ft", "finished", "bitti") or new_period.lower() in ("played", "ms", "ft", "finished")
+    is_ft = new_status.lower() in ("played", "ms", "ft", "finished", "bitti") or new_period.lower() in ("played", "ms", "ft", "finished", "full time", "fulltime", "maç bitti")
+
+    if is_ft:
+        m["status"] = "Played"
+        m["period"] = new_period or "Full Time"
+    elif new_status:
+        m["status"] = new_status
+    if new_period:
+        m["period"] = new_period
 
     if is_initial:
         if new_home is not None:
@@ -239,8 +247,6 @@ def process_match_update(update, is_initial=False):
             m["notified_scores"].add((m["home_score"], m["away_score"]))
         if update.get("hts_A") is not None: m["ht_home"] = update["hts_A"]
         if update.get("hts_B") is not None: m["ht_away"] = update["hts_B"]
-        m["status"] = new_status
-        m["period"] = new_period
         if is_ht or is_ft:
             m["notified_ht"] = True
         if is_ft:
@@ -421,50 +427,63 @@ def sahadan_http_sync_worker():
         # 1. Her 30 saniyede bir tüm maçların durumunu çek (soccer-live-e)
         if now - last_full_fetch >= 30:
             try:
-                today = datetime.datetime.now(tz_tr).strftime("%Y-%m-%d")
-                live_url = f"https://www.sahadan.com/api/index/soccer-live-e?a=bs&e=sams&add_playing=0&extended_period=1&date={today}&application=mackolik.com&language=tr"
-                req = urllib.request.Request(live_url, headers=headers)
-                with urllib.request.urlopen(req, timeout=10) as res:
-                    raw = json.loads(res.read().decode("utf-8"))
-                    areas = raw.get("data", {}).get("areas", [])
-                    new_summary = []
-                    for a in areas:
-                        for c in a.get("competitions", []):
-                            for m in c.get("matches", []):
-                                mid = m.get("id")
-                                uuid = m.get("uuid")
-                                t_a = m.get("team_A", {}).get("name", "")
-                                t_b = m.get("team_B", {}).get("name", "")
-                                if mid and t_a and t_b:
-                                    match_names_map[str(mid)] = (t_a, t_b)
-                                if uuid and t_a and t_b:
-                                    match_names_map[str(uuid)] = (t_a, t_b)
+                now_dt = datetime.datetime.now(tz_tr)
+                dates_to_sync = [
+                    (now_dt - datetime.timedelta(days=1)).strftime("%Y-%m-%d"),
+                    now_dt.strftime("%Y-%m-%d")
+                ]
+                new_summary_map = {}
+                for sync_date in dates_to_sync:
+                    try:
+                        live_url = f"https://www.sahadan.com/api/index/soccer-live-e?a=bs&e=sams&add_playing=1&extended_period=1&date={sync_date}&application=mackolik.com&language=tr"
+                        req = urllib.request.Request(live_url, headers=headers)
+                        with urllib.request.urlopen(req, timeout=10) as res:
+                            raw = json.loads(res.read().decode("utf-8"))
+                            areas = raw.get("data", {}).get("areas", [])
+                            for a in areas:
+                                for c in a.get("competitions", []):
+                                    for m in c.get("matches", []):
+                                        mid = m.get("id")
+                                        uuid = m.get("uuid")
+                                        t_a = m.get("team_A", {}).get("name", "")
+                                        t_b = m.get("team_B", {}).get("name", "")
+                                        if mid and t_a and t_b:
+                                            match_names_map[str(mid)] = (t_a, t_b)
+                                        if uuid and t_a and t_b:
+                                            match_names_map[str(uuid)] = (t_a, t_b)
 
-                                match_dict = {
-                                    "id": mid,
-                                    "match_id": mid,
-                                    "uuid": uuid,
-                                    "match_uuid": uuid,
-                                    "status": m.get("status"),
-                                    "period": m.get("period"),
-                                    "minute": m.get("minute"),
-                                    "fts_A": m.get("fts_A"),
-                                    "fts_B": m.get("fts_B"),
-                                    "hts_A": m.get("hts_A"),
-                                    "hts_B": m.get("hts_B"),
-                                    "home_team_name": t_a,
-                                    "away_team_name": t_b
-                                }
-                                new_summary.append(match_dict)
-                                process_match_update(match_dict, is_initial=is_initial_sync)
+                                        raw_st = str(m.get("status") or "").strip()
+                                        raw_pr = str(m.get("period") or "").strip()
+                                        is_m_ft = raw_st.lower() in ("played", "ms", "ft", "finished", "bitti") or raw_pr.lower() in ("played", "ms", "ft", "finished", "full time", "fulltime", "maç bitti")
 
-                    latest_matches_summary = new_summary
+                                        match_dict = {
+                                            "id": mid,
+                                            "match_id": mid,
+                                            "uuid": uuid,
+                                            "match_uuid": uuid,
+                                            "status": "Played" if is_m_ft else raw_st,
+                                            "period": raw_pr,
+                                            "minute": m.get("minute"),
+                                            "fts_A": m.get("fts_A"),
+                                            "fts_B": m.get("fts_B"),
+                                            "hts_A": m.get("hts_A"),
+                                            "hts_B": m.get("hts_B"),
+                                            "home_team_name": t_a,
+                                            "away_team_name": t_b
+                                        }
+                                        new_summary_map[str(mid)] = match_dict
+                                        process_match_update(match_dict, is_initial=is_initial_sync)
+                    except Exception as sync_err:
+                        log_event(f"Sahadan sync error for {sync_date}: {sync_err}")
+
+                if new_summary_map:
+                    latest_matches_summary = list(new_summary_map.values())
                     last_full_fetch = now
                     if is_initial_sync:
                         is_initial_sync = False
-                        live_cnt = len([x for x in new_summary if x.get("status") == "Playing"])
-                        played_cnt = len([x for x in new_summary if x.get("status") == "Played"])
-                        log_event(f"✓ Sahadan canlı maç tablosu yüklendi: Toplam {len(new_summary)} maç (Canlı: {live_cnt}, Biten: {played_cnt})")
+                        live_cnt = len([x for x in latest_matches_summary if str(x.get("status") or "").lower() == "playing"])
+                        played_cnt = len([x for x in latest_matches_summary if str(x.get("status") or "").lower() == "played"])
+                        log_event(f"✓ Sahadan canlı maç tablosu yüklendi (2 gün): Toplam {len(latest_matches_summary)} maç (Canlı: {live_cnt}, Biten: {played_cnt})")
             except Exception as e:
                 log_event(f"Sahadan full sync hatası: {e}")
 
@@ -484,8 +503,14 @@ def sahadan_http_sync_worker():
                                 if str(existing.get("id")) == mid or str(existing.get("uuid")) == mid:
                                     if item.get("fts_A") is not None: existing["fts_A"] = item["fts_A"]
                                     if item.get("fts_B") is not None: existing["fts_B"] = item["fts_B"]
-                                    if item.get("status"): existing["status"] = item["status"]
-                                    if item.get("period"): existing["period"] = item["period"]
+                                    st = str(item.get("status") or "").strip()
+                                    pr = str(item.get("period") or "").strip()
+                                    is_end = st.lower() in ("played", "ms", "ft", "finished", "bitti") or pr.lower() in ("played", "ms", "ft", "finished", "full time", "fulltime", "maç bitti")
+                                    if is_end:
+                                        existing["status"] = "Played"
+                                    elif st:
+                                        existing["status"] = st
+                                    if pr: existing["period"] = pr
                                     if item.get("minute") is not None: existing["minute"] = item["minute"]
                                     break
             except Exception:
@@ -514,6 +539,21 @@ def start_socket_listener():
         items = content if isinstance(content, list) else [content]
         for item in items:
             process_match_update(item, is_initial=False)
+            mid = str(item.get("match_id") or item.get("id") or item.get("uuid") or "")
+            for existing in latest_matches_summary:
+                if str(existing.get("id")) == mid or str(existing.get("uuid")) == mid:
+                    if item.get("fts_A") is not None: existing["fts_A"] = item["fts_A"]
+                    if item.get("fts_B") is not None: existing["fts_B"] = item["fts_B"]
+                    st = str(item.get("status") or "").strip()
+                    pr = str(item.get("period") or "").strip()
+                    is_end = st.lower() in ("played", "ms", "ft", "finished", "bitti") or pr.lower() in ("played", "ms", "ft", "finished", "full time", "fulltime", "maç bitti")
+                    if is_end:
+                        existing["status"] = "Played"
+                    elif st:
+                        existing["status"] = st
+                    if pr: existing["period"] = pr
+                    if item.get("minute") is not None: existing["minute"] = item["minute"]
+                    break
 
     while True:
         try:

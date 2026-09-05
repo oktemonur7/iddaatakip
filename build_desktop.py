@@ -353,6 +353,10 @@ def fetch_live_scores_today():
                                         except:
                                             pass
 
+                                    raw_st = str(m_item.get("status") or "").strip()
+                                    raw_pr = str(m_item.get("period") or "").strip()
+                                    is_m_ft = raw_st.lower() in ("played", "ms", "ft", "finished", "bitti") or raw_pr.lower() in ("played", "ms", "ft", "finished", "full time", "fulltime", "maç bitti")
+
                                     today_matches.append({
                                         "league_id": linfo["id"],
                                         "league_name": linfo["name"],
@@ -362,8 +366,8 @@ def fetch_live_scores_today():
                                         "match_uuid": m_item.get("match_uuid") or m_item.get("uuid"),
                                         "date_time": raw_dt,
                                         "match_time": local_time,
-                                        "status": m_item.get("status"),
-                                        "period": m_item.get("period"),
+                                        "status": "Played" if is_m_ft else raw_st,
+                                        "period": raw_pr,
                                         "minute": m_item.get("minute"),
                                         "minute_extra": m_item.get("minute_extra"),
                                         "home_team": tA.get("name") if isinstance(tA, dict) else str(tA),
