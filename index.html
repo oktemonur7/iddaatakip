@@ -2475,7 +2475,7 @@
     let currentPushSubscription = null;
 
     function getPushServerUrl() {
-      return localStorage.getItem("iddaatakip_push_server") || "";
+      return localStorage.getItem("iddaatakip_push_server") || "https://iddaatakip.onrender.com";
     }
 
     function savePushServerUrl(url) {

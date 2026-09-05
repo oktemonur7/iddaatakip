@@ -5,6 +5,7 @@ import os
 import sys
 import threading
 import time
+import urllib.request
 import socketio
 from pywebpush import webpush, WebPushException
 
@@ -252,6 +253,20 @@ class RequestHandler(http.server.SimpleHTTPRequestHandler):
         self.send_response(404)
         self.end_headers()
 
+def keep_alive_ping():
+    time.sleep(60)
+    while True:
+        try:
+            url = os.environ.get("RENDER_EXTERNAL_URL", "https://iddaatakip.onrender.com")
+            ping_url = f"{url.rstrip('/')}/api/subscriptions"
+            req = urllib.request.Request(ping_url, headers={"User-Agent": "RenderKeepAlive/1.0"})
+            with urllib.request.urlopen(req, timeout=15) as res:
+                if res.status == 200:
+                    print("[KEEP-ALIVE] Ping başarılı, sunucu uyanık tutuluyor.")
+        except Exception as e:
+            print("[KEEP-ALIVE] Ping uyarısı:", e)
+        time.sleep(540)  # 9 dakikada bir (15 dk sınırından önce)
+
 if __name__ == "__main__":
     os.chdir(os.path.dirname(os.path.abspath(__file__)))
     socketserver.TCPServer.allow_reuse_address = True
@@ -259,6 +274,10 @@ if __name__ == "__main__":
     # Start live socket listener thread
     sock_thread = threading.Thread(target=start_socket_listener, daemon=True)
     sock_thread.start()
+
+    # Start keep-alive ping thread (Render Free Tier uyku önleyici)
+    keepalive_thread = threading.Thread(target=keep_alive_ping, daemon=True)
+    keepalive_thread.start()
 
     print(f"==================================================")
     print(f"🚀 İddaa Takip Web Push Sunucusu Başlatıldı")
