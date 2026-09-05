@@ -1568,7 +1568,7 @@
       syncFavoritesToServer();
     }
 
-    // Gol Bildirimi (Net, kısa ve kulağı yormayan elektronik bip sesi)
+    // Gol Bildirimi (Yüksek sesli, net ve gür çift tonlu gol uyarısı)
     let audioCtx = null;
     function playGoalSound() {
       try {
@@ -1582,16 +1582,30 @@
         }
 
         const now = audioCtx.currentTime;
-        const osc = audioCtx.createOscillator();
-        const gain = audioCtx.createGain();
-        osc.type = "sine";
-        osc.frequency.setValueAtTime(960, now);
-        gain.gain.setValueAtTime(0.28, now);
-        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.1);
-        osc.connect(gain);
-        gain.connect(audioCtx.destination);
-        osc.start(now);
-        osc.stop(now + 0.1);
+
+        // 1. Ton: 880 Hz (A5) - Canlı ve net giriş
+        const osc1 = audioCtx.createOscillator();
+        const gain1 = audioCtx.createGain();
+        osc1.type = "sine";
+        osc1.frequency.setValueAtTime(880, now);
+        gain1.gain.setValueAtTime(0.85, now);
+        gain1.gain.exponentialRampToValueAtTime(0.01, now + 0.2);
+        osc1.connect(gain1);
+        gain1.connect(audioCtx.destination);
+        osc1.start(now);
+        osc1.stop(now + 0.2);
+
+        // 2. Ton: 1320 Hz (E6) - Mobil hoparlörlerde belirgin ve gür çıkan armoni tonu
+        const osc2 = audioCtx.createOscillator();
+        const gain2 = audioCtx.createGain();
+        osc2.type = "triangle";
+        osc2.frequency.setValueAtTime(1320, now + 0.08);
+        gain2.gain.setValueAtTime(0.9, now + 0.08);
+        gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.38);
+        osc2.connect(gain2);
+        gain2.connect(audioCtx.destination);
+        osc2.start(now + 0.08);
+        osc2.stop(now + 0.38);
       } catch (err) {
         console.warn("Ses çalma hatası:", err);
       }
@@ -2150,11 +2164,6 @@
         scoreDisplay = "- : -";
       }
 
-      let htScoreText = "";
-      if ((isLive || isPlayed) && m.half_time_home !== null && m.half_time_home !== undefined) {
-        htScoreText = `İY ${m.half_time_home}:${m.half_time_away}`;
-      }
-
       // Oranlar Tooltip (Varsa)
       let oddsHtml = "";
       if (m.odds) {
@@ -2214,9 +2223,6 @@
             </div>
             <div class="live-team away" title="${m.away_team}">${m.away_team}</div>
           </div>
-
-          <!-- Devre Skoru -->
-          <div class="live-ht-score" id="live-ht-${m.match_id}">${htScoreText}</div>
         </div>
       `;
     }
@@ -2421,7 +2427,7 @@
           scoreEl.classList.add("goal-flash");
           setTimeout(() => {
             if (scoreEl) scoreEl.classList.remove("goal-flash");
-          }, 8000);
+          }, 12000);
         }
       }
 
