@@ -4,8 +4,8 @@ on:
   push:
     branches: [main]
   schedule:
-    # Her saat başı çalışır (UTC)
-    - cron: '0 * * * *'
+    # Her gün saat 09:00 Türkiye saati (06:00 UTC) çalışır
+    - cron: '0 6 * * *'
   workflow_dispatch:   # Manuel tetikleme butonu
 
 permissions:

@@ -362,6 +362,56 @@
       padding: 6px;
     }
 
+    /* BUGÜN TOGGLE */
+    .today-toggle {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      cursor: pointer;
+      user-select: none;
+      margin-left: 6px;
+    }
+    .today-toggle input[type="checkbox"] { display: none; }
+    .today-toggle-slider {
+      position: relative;
+      width: 34px;
+      height: 18px;
+      background: rgba(255,255,255,0.12);
+      border-radius: 999px;
+      border: 1px solid rgba(255,255,255,0.18);
+      transition: background 0.2s;
+      flex-shrink: 0;
+    }
+    .today-toggle-slider::after {
+      content: '';
+      position: absolute;
+      top: 2px;
+      left: 2px;
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      background: #aaa;
+      transition: transform 0.2s, background 0.2s;
+    }
+    .today-toggle input:checked ~ .today-toggle-slider {
+      background: rgba(0,255,133,0.22);
+      border-color: #00ff85;
+    }
+    .today-toggle input:checked ~ .today-toggle-slider::after {
+      transform: translateX(16px);
+      background: #00ff85;
+    }
+    .today-toggle-text {
+      font-size: 0.8rem;
+      font-weight: 700;
+      color: rgba(255,255,255,0.6);
+      letter-spacing: 0.02em;
+    }
+    .today-toggle input:checked ~ .today-toggle-text,
+    .today-toggle:has(input:checked) .today-toggle-text {
+      color: #00ff85;
+    }
+
     /* MATCH LIST */
     .matches-list {
       display: flex;
@@ -1035,6 +1085,12 @@
             <button class="week-nav-btn" id="next-week-btn" onclick="changeWeek(1)" title="Sonraki Hafta">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M9 18l6-6-6-6"/></svg>
             </button>
+
+            <label class="today-toggle" id="today-toggle-label" title="Sadece bugünün maçlarını göster">
+              <input type="checkbox" id="today-only-checkbox" onchange="toggleTodayOnly(this.checked)">
+              <span class="today-toggle-slider"></span>
+              <span class="today-toggle-text">Bugün</span>
+            </label>
           </div>
         </div>
 
@@ -1075,6 +1131,7 @@
     let currentLeagueId = allLeaguesState.default_league || (allLeaguesState.leagues_list[0]?.id || "");
     let currentLeagueData = allLeaguesState.data[currentLeagueId] || null;
     let selectedWeekIndex = 0;
+    let todayOnlyFilter = false; // "Bugün" toggle durumu
 
     let currentMainView = "leagues"; // 'leagues' | 'livescores'
     let currentLiveFilter = "all";   // 'all' | 'live' | 'played' | 'fixture' | 'favorites'
@@ -1350,9 +1407,31 @@
         return;
       }
 
+      // "Bugün" filtresi
+      let matchesToShow = currentWeek.matches;
+      if (todayOnlyFilter) {
+        const todayStr = new Date().toLocaleDateString("tr-TR", { day: "2-digit", month: "2-digit", year: "numeric" });
+        const todayDate = new Date();
+        const todayY = todayDate.getFullYear();
+        const todayM = todayDate.getMonth();
+        const todayD = todayDate.getDate();
+        matchesToShow = currentWeek.matches.filter(m => {
+          if (!m.date_time) return false;
+          try {
+            const d = new Date(m.date_time.replace(" ", "T") + "Z");
+            return d.getFullYear() === todayY && d.getMonth() === todayM && d.getDate() === todayD;
+          } catch(e) { return false; }
+        });
+      }
+
+      if (!matchesToShow.length) {
+        container.innerHTML = "<div class='loading-state'>Bugün bu ligde maç yok.</div>";
+        return;
+      }
+
       let html = `<div class="matches-list">`;
 
-      currentWeek.matches.forEach(m => {
+      matchesToShow.forEach(m => {
         const home = m.home_team;
         const away = m.away_team;
         const homeId = home.id;
@@ -1460,6 +1539,44 @@
 
       html += `</div>`;
       container.innerHTML = html;
+    }
+
+    // "Bugün" toggle
+    function toggleTodayOnly(checked) {
+      todayOnlyFilter = checked;
+
+      // Bugün filtresi açıkken ilgili haftayı bul ve seç
+      if (checked) {
+        const weeks = currentLeagueData?.weeks || [];
+        const todayDate = new Date();
+        const todayY = todayDate.getFullYear();
+        const todayM = todayDate.getMonth();
+        const todayD = todayDate.getDate();
+        let foundIdx = selectedWeekIndex;
+        for (let i = 0; i < weeks.length; i++) {
+          const wk = weeks[i];
+          const hasTodayMatch = (wk.matches || []).some(m => {
+            if (!m.date_time) return false;
+            try {
+              const d = new Date(m.date_time.replace(" ", "T") + "Z");
+              return d.getFullYear() === todayY && d.getMonth() === todayM && d.getDate() === todayD;
+            } catch(e) { return false; }
+          });
+          if (hasTodayMatch) { foundIdx = i; break; }
+        }
+        selectedWeekIndex = foundIdx;
+        renderWeekSelector();
+      }
+
+      // Hafta seçiciyi kilitle/aç
+      const sel = document.getElementById("week-selector");
+      const prevBtn = document.getElementById("prev-week-btn");
+      const nextBtn = document.getElementById("next-week-btn");
+      if (sel) sel.disabled = checked;
+      if (prevBtn) prevBtn.disabled = checked;
+      if (nextBtn) nextBtn.disabled = checked;
+
+      renderFixture();
     }
 
     // Fikstürdeki maçın üzerine gelindiğinde puan tablosundaki iki takımı yak
