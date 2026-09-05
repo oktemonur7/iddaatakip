@@ -1528,6 +1528,7 @@
     let currentLeagueData = allLeaguesState.data[currentLeagueId] || null;
     let selectedWeekIndex = 0;
     let todayOnlyFilter = false; // "Bugün" toggle durumu
+    const APP_LOAD_TIME = Date.now();
 
     let currentMainView = "leagues"; // 'leagues' | 'livescores'
     let currentLiveFilter = "all";   // 'all' | 'live' | 'played' | 'fixture' | 'favorites'
@@ -2357,18 +2358,23 @@
       let scoreChanged = false;
       let goalScored = false;
 
+      // Sayfa yeni açıldığında socket'ten gelen ilk toplu veriler geçmişteki golleri içerir.
+      // Bunların o an atılmış gibi 8 saniye parlamasını ve ses çalmasını engelle:
+      const isInitialSync = (Date.now() - APP_LOAD_TIME < 6000) || !m._initialSynced;
+      m._initialSynced = true;
+
       // Skor kontrolü
       if (update.fts_A !== undefined && update.fts_A !== null) {
         const newHome = parseInt(update.fts_A, 10);
         const oldHome = (m.home_score !== null && m.home_score !== undefined && !isNaN(parseInt(m.home_score, 10))) ? parseInt(m.home_score, 10) : null;
-        if (oldHome !== null && newHome > oldHome) goalScored = true;
+        if (!isInitialSync && oldHome !== null && newHome > oldHome) goalScored = true;
         if (newHome !== m.home_score) scoreChanged = true;
         m.home_score = newHome;
       }
       if (update.fts_B !== undefined && update.fts_B !== null) {
         const newAway = parseInt(update.fts_B, 10);
         const oldAway = (m.away_score !== null && m.away_score !== undefined && !isNaN(parseInt(m.away_score, 10))) ? parseInt(m.away_score, 10) : null;
-        if (oldAway !== null && newAway > oldAway) goalScored = true;
+        if (!isInitialSync && oldAway !== null && newAway > oldAway) goalScored = true;
         if (newAway !== m.away_score) scoreChanged = true;
         m.away_score = newAway;
       }
