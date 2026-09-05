@@ -1539,6 +1539,7 @@
 
       updateLiveCounts();
       renderLiveScores();
+      syncFavoritesToServer();
     }
 
     // Gol Bildirimi (Net, kısa ve kulağı yormayan elektronik bip sesi)
@@ -2518,6 +2519,7 @@
         currentPushSubscription = sub;
         if (sub) {
           updatePushBadge(true, "Açık (Aktif)");
+          syncFavoritesToServer();
         } else {
           updatePushBadge(false, "Kapalı");
         }
@@ -2529,11 +2531,27 @@
       }
     }
 
+    function syncFavoritesToServer() {
+      if (!currentPushSubscription) return;
+      const serverBase = getPushServerUrl() || window.location.origin;
+      const subscribeEndpoint = serverBase.replace(/\/+$/, "") + "/api/subscribe";
+      const payload = {
+        ...currentPushSubscription.toJSON(),
+        favorites: Array.from(favoriteMatchIds)
+      };
+      fetch(subscribeEndpoint, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      }).catch(err => console.warn("Favori senkronizasyonu:", err));
+    }
+
     function updatePushBadge(active, text) {
       const btn = document.getElementById("notif-toggle-btn");
       const statusText = document.getElementById("notif-status-text");
       const subBtn = document.getElementById("notif-subscribe-btn");
       const testBtn = document.getElementById("notif-test-btn");
+      const favCountEl = document.getElementById("notif-fav-count");
 
       if (btn) {
         if (active) btn.classList.add("active");
@@ -2550,10 +2568,17 @@
       if (testBtn) {
         testBtn.style.display = active ? "flex" : "none";
       }
+      if (favCountEl) {
+        favCountEl.innerText = `${favoriteMatchIds.size} maç takip ediliyor`;
+      }
     }
 
     function refreshPushUiState() {
       checkPushSubscription();
+      const favCountEl = document.getElementById("notif-fav-count");
+      if (favCountEl) {
+        favCountEl.innerText = `${favoriteMatchIds.size} maç takip ediliyor`;
+      }
     }
 
     async function handleSubscribePush() {
@@ -2597,9 +2622,12 @@
             await fetch(subscribeEndpoint, {
               method: "POST",
               headers: { "Content-Type": "application/json" },
-              body: JSON.stringify(newSub)
+              body: JSON.stringify({
+                ...newSub.toJSON(),
+                favorites: Array.from(favoriteMatchIds)
+              })
             });
-            alert("✅ Bildirimler başarıyla açıldı! Canlı maçlarda gol olduğunda kilit ekranınıza bildirim gelecek.");
+            alert("✅ Bildirimler başarıyla açıldı! Sadece yıldızladığınız (★) maçların gol, devre, maç sonu ve kırmızı kart bildirimleri kilit ekranınıza gelecek.");
           } catch (netErr) {
             console.warn("Sunucuya bildirim kaydı iletilemedi:", netErr);
             alert("✅ Bildirim izni cihazınızda açıldı! Sunucuya bağlanıldığında test bildirimi alabilirsiniz.");
@@ -2622,8 +2650,8 @@
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            title: "⚽ Test Bildirimi",
-            body: "İddaa Takip bildirim sistemi kusursuz çalışıyor! 🚀",
+            title: "⭐ Test Bildirimi",
+            body: "İddaa Takip favori bildirim sistemi kusursuz çalışıyor! 🚀",
             icon: "icons/icon-192.png"
           })
         });
@@ -2640,8 +2668,8 @@
     function showLocalNotificationFallback() {
       if (Notification.permission === "granted") {
         navigator.serviceWorker.ready.then(reg => {
-          reg.showNotification("⚽ Test Bildirimi (Yerel)", {
-            body: "İddaa Takip bildirim sistemi çalışıyor! (Cihaz bildirimi başarılı)",
+          reg.showNotification("⭐ Test Bildirimi (Yerel)", {
+            body: "İddaa Takip favori bildirim sistemi çalışıyor! (Cihaz bildirimi başarılı)",
             icon: "icons/icon-192.png"
           });
         });
@@ -2657,19 +2685,31 @@
     <div class="notif-modal-card" onclick="event.stopPropagation()">
       <div class="notif-modal-header">
         <div class="notif-modal-title">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#00ff85" stroke-width="2.2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
-          Canlı Gol Bildirimleri
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#00ff85" stroke-width="2.2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+          Favori Maç Bildirimleri
         </div>
         <button class="notif-modal-close" onclick="closeNotifModal()">&times;</button>
       </div>
       <div class="notif-modal-body">
         <p class="notif-modal-desc">
-          Uygulama tamamen kapalı veya telefon kilitli olsa dahi anlık gol bildirimlerini kilit ekranınızda alın.
+          Gereksiz bildirim kirliliği yok! Sadece <strong>yıldızladığınız (★)</strong> maçlar için kilit ekranı bildirimi alırsınız:
         </p>
 
-        <div class="notif-status-box" style="margin: 12px 0;">
+        <div style="font-size: 0.82rem; color: #cbd5e1; background: rgba(0, 255, 133, 0.08); border: 1px solid rgba(0, 255, 133, 0.25); border-radius: 10px; padding: 10px 14px; margin: 10px 0; display: flex; flex-direction: column; gap: 4px;">
+          <div>⚽ <strong>Gol</strong> (Anlık skor güncellemesi)</div>
+          <div>⏸️ <strong>İlk Yarı Bitti</strong> (İY skoru)</div>
+          <div>🏁 <strong>Maç Bitti</strong> (MS skoru)</div>
+          <div>🟥 <strong>Kırmızı Kart</strong></div>
+        </div>
+
+        <div class="notif-status-box" style="margin: 10px 0;">
           <div class="notif-status-label">Bildirim Durumu:</div>
           <div class="notif-status-val" id="notif-status-text">Kontrol ediliyor...</div>
+        </div>
+
+        <div class="notif-status-box" style="margin-bottom: 12px;">
+          <div class="notif-status-label">Seçili Favori Maçlar:</div>
+          <div class="notif-status-val" id="notif-fav-count" style="color: #facc15;">0 maç takip ediliyor</div>
         </div>
 
         <div class="notif-actions">
@@ -2682,9 +2722,9 @@
         </div>
 
         <div class="notif-server-section" style="margin-top: 14px;">
-          <label class="notif-server-label">Push Sunucu Adresi (Opsiyonel / Render / Local):</label>
-          <input type="text" class="notif-server-input" id="notif-server-url" placeholder="http://localhost:8080 veya Render linki" onchange="savePushServerUrl(this.value)" />
-          <span class="notif-hint">Boş bırakılırsa geçerli sunucu kullanılır. Arkadaşlarınız kendi cihazlarından bağlanırken buraya sunucu adresini girebilir.</span>
+          <label class="notif-server-label">Push Sunucu Adresi (Render / Bulut):</label>
+          <input type="text" class="notif-server-input" id="notif-server-url" placeholder="https://iddaatakip.onrender.com" onchange="savePushServerUrl(this.value)" />
+          <span class="notif-hint">Render bulut sunucunuz varsayılan olarak ayarlıdır. Değiştirmenize gerek yoktur.</span>
         </div>
       </div>
     </div>
