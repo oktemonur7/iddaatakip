@@ -242,12 +242,14 @@ def process_match_update(update, is_initial=False):
             m["notified_ft"] = True
         return
 
+    goal_team = ""
     goal_scored = False
     if new_home is not None:
         try:
             new_h = int(new_home)
             if m["home_score"] is not None and new_h > m["home_score"]:
                 goal_scored = True
+                goal_team = m["home_team"]
             m["home_score"] = new_h
         except ValueError:
             pass
@@ -257,18 +259,20 @@ def process_match_update(update, is_initial=False):
             new_a = int(new_away)
             if m["away_score"] is not None and new_a > m["away_score"]:
                 goal_scored = True
+                goal_team = m["away_team"]
             m["away_score"] = new_a
         except ValueError:
             pass
 
     if goal_scored:
         min_str = f"{m['minute']}'" if m["minute"] else "Canlı"
-        title = f"⚽ GOL! ({min_str})"
-        body = f"{m['home_team']} {m['home_score']} - {m['away_score']} {m['away_team']}"
-        log_event(f"GOL TESPİT EDİLDİ: {title} {body}")
+        team_str = f" {goal_team}" if goal_team else ""
+        header_line = f"⚽ GOL!{team_str} ({min_str})"
+        score_line = f"{m['home_team']} {m['home_score']} - {m['away_score']} {m['away_team']}"
+        log_event(f"GOL TESPİT EDİLDİ: {header_line} -> {score_line}")
         send_push_for_match(all_identifiers, {
-            "title": title,
-            "body": body,
+            "title": "İddaa Takip",
+            "body": f"{header_line}\n{score_line}",
             "icon": "icons/icon-192.png",
             "tag": f"goal-{mid}-{m['home_score']}-{m['away_score']}"
         })
@@ -287,12 +291,12 @@ def process_match_update(update, is_initial=False):
         m["notified_ht"] = True
         ht_h = m["ht_home"] if m["ht_home"] is not None else (m["home_score"] if m["home_score"] is not None else 0)
         ht_a = m["ht_away"] if m["ht_away"] is not None else (m["away_score"] if m["away_score"] is not None else 0)
-        title = f"⏸️ İLK YARI BİTTİ (İY {ht_h}-{ht_a})"
-        body = f"{m['home_team']} vs {m['away_team']}"
-        log_event(f"İY BİTTİ: {title} {body}")
+        header_line = "⏸️ İlk Yarı Bitti"
+        score_line = f"{m['home_team']} {ht_h} - {ht_a} {m['away_team']}"
+        log_event(f"İY BİTTİ: {score_line}")
         send_push_for_match(all_identifiers, {
-            "title": title,
-            "body": body,
+            "title": "İddaa Takip",
+            "body": f"{header_line}\n{score_line}",
             "icon": "icons/icon-192.png",
             "tag": f"ht-{mid}"
         })
@@ -303,12 +307,12 @@ def process_match_update(update, is_initial=False):
         m["notified_ft"] = True
         h = m["home_score"] if m["home_score"] is not None else 0
         a = m["away_score"] if m["away_score"] is not None else 0
-        title = f"🏁 MAÇ BİTTİ (MS {h}-{a})"
-        body = f"{m['home_team']} vs {m['away_team']}"
-        log_event(f"MAÇ BİTTİ: {title} {body}")
+        header_line = "🏁 Maç Bitti"
+        score_line = f"{m['home_team']} {h} - {a} {m['away_team']}"
+        log_event(f"MAÇ BİTTİ: {score_line}")
         send_push_for_match(all_identifiers, {
-            "title": title,
-            "body": body,
+            "title": "İddaa Takip",
+            "body": f"{header_line}\n{score_line}",
             "icon": "icons/icon-192.png",
             "tag": f"ft-{mid}"
         })
@@ -321,12 +325,12 @@ def process_match_update(update, is_initial=False):
                 if new_rc_h > m["rc_home"]:
                     m["rc_home"] = new_rc_h
                     min_str = f"{m['minute']}'" if m["minute"] else "Canlı"
-                    title = f"🟥 KIRMIZI KART! ({min_str})"
-                    body = f"{m['home_team']} kırmızı kart gördü! ({m['home_team']} {m.get('home_score',0)} - {m.get('away_score',0)} {m['away_team']})"
-                    log_event(f"KIRMIZI KART: {title} {body}")
+                    header_line = f"🟥 Kırmızı Kart! {m['home_team']} ({min_str})"
+                    score_line = f"{m['home_team']} {m.get('home_score',0)} - {m.get('away_score',0)} {m['away_team']}"
+                    log_event(f"KIRMIZI KART: {header_line}")
                     send_push_for_match(all_identifiers, {
-                        "title": title,
-                        "body": body,
+                        "title": "İddaa Takip",
+                        "body": f"{header_line}\n{score_line}",
                         "icon": "icons/icon-192.png",
                         "tag": f"rc-{mid}-{time.time()}"
                     })
@@ -340,12 +344,12 @@ def process_match_update(update, is_initial=False):
                 if new_rc_a > m["rc_away"]:
                     m["rc_away"] = new_rc_a
                     min_str = f"{m['minute']}'" if m["minute"] else "Canlı"
-                    title = f"🟥 KIRMIZI KART! ({min_str})"
-                    body = f"{m['away_team']} kırmızı kart gördü! ({m['home_team']} {m.get('home_score',0)} - {m.get('away_score',0)} {m['away_team']})"
-                    log_event(f"KIRMIZI KART: {title} {body}")
+                    header_line = f"🟥 Kırmızı Kart! {m['away_team']} ({min_str})"
+                    score_line = f"{m['home_team']} {m.get('home_score',0)} - {m.get('away_score',0)} {m['away_team']}"
+                    log_event(f"KIRMIZI KART: {header_line}")
                     send_push_for_match(all_identifiers, {
-                        "title": title,
-                        "body": body,
+                        "title": "İddaa Takip",
+                        "body": f"{header_line}\n{score_line}",
                         "icon": "icons/icon-192.png",
                         "tag": f"rc-{mid}-{time.time()}"
                     })
@@ -568,8 +572,8 @@ class RequestHandler(http.server.SimpleHTTPRequestHandler):
                     log_event(f"Yeni abone kaydedildi ({len(favs)} favori): {endpoint[:40]}...")
                     # Send welcome push
                     send_push_to_sub(sub_data, {
-                        "title": "⭐ İddaa Takip",
-                        "body": "✅ Bildirimler aktif! Sadece yıldızladığınız (★) maçların gol, devre, maç sonu ve kırmızı kart bildirimleri gelecek.",
+                        "title": "İddaa Takip",
+                        "body": "✅ Bildirimler Aktif!\nYıldızladığınız (★) maçların gol, devre, maç sonu ve kırmızı kart bildirimleri gelecek.",
                         "icon": "icons/icon-192.png",
                         "tag": "welcome"
                     })
@@ -598,8 +602,8 @@ class RequestHandler(http.server.SimpleHTTPRequestHandler):
                     pass
 
             payload = custom_payload or {
-                "title": "⭐ Test Bildirimi",
-                "body": "İddaa Takip favori bildirim sistemi kusursuz çalışıyor! 🚀",
+                "title": "İddaa Takip",
+                "body": "⭐ Test Bildirimi\nFavori maç bildirim sisteminiz kusursuz çalışıyor! 🚀",
                 "icon": "icons/icon-192.png",
                 "tag": "test-push"
             }

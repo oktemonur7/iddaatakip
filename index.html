@@ -2693,8 +2693,8 @@
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            title: "⭐ Test Bildirimi",
-            body: "İddaa Takip favori bildirim sistemi kusursuz çalışıyor! 🚀",
+            title: "İddaa Takip",
+            body: "⭐ Test Bildirimi\nFavori maç bildirim sisteminiz kusursuz çalışıyor! 🚀",
             icon: "icons/icon-192.png"
           })
         });
@@ -2714,8 +2714,8 @@
     function showLocalNotificationFallback() {
       if (Notification.permission === "granted") {
         navigator.serviceWorker.ready.then(reg => {
-          reg.showNotification("⭐ Test Bildirimi (Yerel)", {
-            body: "İddaa Takip favori bildirim sistemi çalışıyor! (Cihaz bildirimi başarılı)",
+          reg.showNotification("İddaa Takip", {
+            body: "⭐ Test Bildirimi (Yerel)\nFavori maç bildirim sisteminiz kusursuz çalışıyor! 🚀",
             icon: "icons/icon-192.png"
           });
         });
