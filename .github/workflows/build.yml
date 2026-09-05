@@ -1,0 +1,46 @@
+name: Build & Deploy
+
+on:
+  push:
+    branches: [main]
+  schedule:
+    # Her saat başı çalışır (UTC)
+    - cron: '0 * * * *'
+  workflow_dispatch:   # Manuel tetikleme butonu
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Repo'yu indir
+        uses: actions/checkout@v4
+
+      - name: Python kur
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Gerekli paketleri yükle
+        run: pip install requests
+
+      - name: HTML oluştur
+        run: python build_desktop.py
+
+      - name: dist/index.html var mı kontrol et
+        run: |
+          ls -lh dist/index.html
+          echo "✓ dist/index.html hazır"
+
+      - name: GitHub Pages'e yükle
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./dist
+          publish_branch: gh-pages
+          commit_message: "chore: otomatik güncelleme (${{ github.run_number }})"

@@ -1,0 +1,1984 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Canlı Futbol Ligleri - Puan Durumu & Fikstür</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/socket.io-client@2.4.0/dist/socket.io.slim.js"></script>
+  <style>
+    :root {
+      --bg: #0b0f19;
+      --card-bg: rgba(18, 24, 38, 0.88);
+      --card-border: rgba(0, 255, 133, 0.18);
+      --text: #f1f5f9;
+      --text-muted: #94a3b8;
+      --accent: #38bdf8;
+      --accent-glow: rgba(56, 189, 248, 0.4);
+      --highlight-blue: #38bdf8;
+      --highlight-blue-bg: rgba(56, 189, 248, 0.22);
+      --highlight-blue-glow: 0 0 25px rgba(56, 189, 248, 0.55), inset 4px 0 0 #38bdf8;
+      --pl-purple: #37003c;
+      --pl-neon: #00ff85;
+      --pl-neon-glow: 0 0 16px rgba(0, 255, 133, 0.55);
+      --win: #10b981;
+      --draw: #f59e0b;
+      --loss: #ef4444;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      min-height: 100vh;
+      background-color: var(--bg);
+      background-image: 
+        radial-gradient(at 0% 0%, rgba(55, 0, 60, 0.55) 0px, transparent 55%),
+        radial-gradient(at 100% 100%, rgba(0, 255, 133, 0.15) 0px, transparent 55%),
+        radial-gradient(at 50% 50%, rgba(15, 23, 42, 0.85) 0px, transparent 100%);
+      background-attachment: fixed;
+      color: var(--text);
+      font-family: 'Outfit', -apple-system, BlinkMacSystemFont, sans-serif;
+      font-size: 14px;
+      padding: 18px 22px;
+    }
+
+    .app-container {
+      max-width: 1580px;
+      margin: 0 auto;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    /* TOP HEADER & CONTROLS */
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 14px 22px;
+      background: var(--card-bg);
+      backdrop-filter: blur(20px);
+      border: 1px solid rgba(0, 255, 133, 0.22);
+      border-radius: 16px;
+      box-shadow: 0 10px 36px rgba(0, 0, 0, 0.5), 0 0 20px rgba(0, 255, 133, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+    }
+
+    .header-left {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .header-title {
+      font-size: 1.25rem;
+      font-weight: 800;
+      letter-spacing: -0.01em;
+      color: #fff;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      text-shadow: 0 0 12px rgba(255, 255, 255, 0.3);
+    }
+
+    .live-indicator {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.72rem;
+      font-weight: 800;
+      color: var(--pl-neon);
+      background: rgba(0, 255, 133, 0.12);
+      border: 1px solid rgba(0, 255, 133, 0.45);
+      box-shadow: 0 0 12px rgba(0, 255, 133, 0.25);
+      padding: 3px 9px;
+      border-radius: 20px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .live-dot {
+      width: 7px;
+      height: 7px;
+      background-color: var(--pl-neon);
+      border-radius: 50%;
+      box-shadow: 0 0 10px var(--pl-neon);
+      animation: neon-pulse 1.8s infinite;
+    }
+
+    @keyframes neon-pulse {
+      0%, 100% { transform: scale(1); opacity: 1; filter: drop-shadow(0 0 6px var(--pl-neon)); }
+      50% { transform: scale(1.2); opacity: 0.75; filter: drop-shadow(0 0 12px var(--pl-neon)); }
+    }
+
+    /* LEAGUE SELECT BOX */
+    .league-select-wrapper {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: rgba(0, 0, 0, 0.45);
+      border: 1px solid rgba(0, 255, 133, 0.3);
+      border-radius: 10px;
+      padding: 5px 14px;
+      box-shadow: 0 0 12px rgba(0, 255, 133, 0.1);
+    }
+
+    .league-select-label {
+      font-size: 0.76rem;
+      color: var(--pl-neon);
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    .league-selector {
+      background: transparent;
+      color: #fff;
+      border: none;
+      font-size: 0.96rem;
+      font-family: inherit;
+      outline: none;
+      cursor: pointer;
+      font-weight: 700;
+      padding: 3px 0;
+    }
+
+    .league-selector option {
+      background: #0f172a;
+      color: #fff;
+      padding: 8px;
+    }
+
+    .header-meta {
+      font-size: 0.84rem;
+      color: var(--text-muted);
+      font-weight: 600;
+    }
+
+    /* MAIN SPLIT: SOLDA PUAN DURUMU, SAĞDA FİKSTÜR */
+    .main-content {
+      display: grid;
+      grid-template-columns: 1.15fr 0.85fr;
+      gap: 16px;
+      align-items: start;
+    }
+
+    .panel {
+      background: var(--card-bg);
+      backdrop-filter: blur(16px);
+      border: 1px solid var(--card-border);
+      border-radius: 16px;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35), 0 0 18px rgba(0, 255, 133, 0.06);
+    }
+
+    .panel-header {
+      padding: 13px 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: rgba(0, 0, 0, 0.35);
+      border-bottom: 1px solid var(--card-border);
+    }
+
+    .panel-title {
+      font-size: 0.98rem;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: #f8fafc;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      text-shadow: 0 0 8px rgba(255, 255, 255, 0.2);
+    }
+
+    .panel-body {
+      overflow-x: hidden;
+    }
+
+    /* STANDINGS TABLE */
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.88rem;
+    }
+
+    thead th {
+      background: #0c121e;
+      color: #94a3b8;
+      font-weight: 700;
+      padding: 11px 8px;
+      font-size: 0.76rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      border-bottom: 1px solid var(--card-border);
+    }
+
+    tbody tr {
+      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+      transition: background 0.18s ease, transform 0.15s ease;
+      height: 35px;
+    }
+
+    tbody tr:hover {
+      background: rgba(255, 255, 255, 0.04);
+    }
+
+    td {
+      padding: 7px 8px;
+      white-space: nowrap;
+    }
+
+    .center { text-align: center; }
+    .right { text-align: right; }
+
+    .rank-cell {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      font-weight: 700;
+      width: 32px;
+      color: #94a3b8;
+    }
+
+    .zone-indicator {
+      width: 4px;
+      height: 18px;
+      border-radius: 2px;
+      display: inline-block;
+      box-shadow: 0 0 8px currentColor;
+    }
+
+    .team-name {
+      font-weight: 600;
+      color: #f8fafc;
+      font-size: 0.92rem;
+      letter-spacing: -0.01em;
+      transition: all 0.2s ease;
+    }
+
+    .pts-cell {
+      font-family: 'JetBrains Mono', monospace;
+      font-weight: 800;
+      color: var(--pl-neon);
+      font-size: 1.02rem;
+      text-shadow: 0 0 10px rgba(0, 255, 133, 0.5);
+    }
+
+    .serie-cell {
+      display: flex;
+      gap: 3px;
+      justify-content: center;
+    }
+
+    .serie-badge {
+      width: 19px;
+      height: 19px;
+      border-radius: 4px;
+      font-size: 0.65rem;
+      font-weight: 800;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #fff;
+    }
+
+    .serie-W { background: var(--win); box-shadow: 0 0 6px rgba(16, 185, 129, 0.4); }
+    .serie-D { background: var(--draw); box-shadow: 0 0 6px rgba(245, 158, 11, 0.4); }
+    .serie-L { background: var(--loss); box-shadow: 0 0 6px rgba(239, 68, 68, 0.4); }
+
+    /* HIGHLIGHT STYLES - NEON MAVİ GLOW (Yatay taşma/scroll engellendi) */
+    tr.highlight-home,
+    tr.highlight-away {
+      background: var(--highlight-blue-bg) !important;
+      box-shadow: inset 0 0 16px rgba(56, 189, 248, 0.35), 0 0 12px rgba(56, 189, 248, 0.4) !important;
+    }
+
+    tr.highlight-home .team-name,
+    tr.highlight-away .team-name {
+      color: #bae6fd !important;
+      font-weight: 800;
+      font-size: 0.96rem;
+      text-shadow: 0 0 12px rgba(56, 189, 248, 0.95), 0 0 24px rgba(56, 189, 248, 0.6);
+    }
+
+    /* RIGHT PANEL: FIXTURE CONTROLS & MATCHES */
+    .fixture-controls {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .week-nav-btn {
+      width: 30px;
+      height: 30px;
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid var(--card-border);
+      border-radius: 8px;
+      color: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: all 0.18s ease;
+    }
+
+    .week-nav-btn:hover:not(:disabled) {
+      background: rgba(0, 255, 133, 0.15);
+      border-color: rgba(0, 255, 133, 0.5);
+      box-shadow: 0 0 12px rgba(0, 255, 133, 0.3);
+      color: var(--pl-neon);
+    }
+
+    .week-nav-btn:disabled {
+      opacity: 0.3;
+      cursor: not-allowed;
+    }
+
+    .week-selector {
+      background: rgba(0, 0, 0, 0.45);
+      color: #fff;
+      border: 1px solid var(--card-border);
+      padding: 5px 12px;
+      border-radius: 8px;
+      font-size: 0.84rem;
+      font-family: inherit;
+      outline: none;
+      cursor: pointer;
+      font-weight: 700;
+    }
+
+    .week-selector option {
+      background: #0f172a;
+      color: #fff;
+      padding: 6px;
+    }
+
+    /* MATCH LIST */
+    .matches-list {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      padding: 12px;
+    }
+
+    .match-row {
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid rgba(255, 255, 255, 0.07);
+      border-radius: 12px;
+      padding: 10px 14px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      cursor: pointer;
+      transition: all 0.22s cubic-bezier(0.4, 0, 0.2, 1);
+      position: relative;
+    }
+
+    .match-row:hover {
+      background: rgba(255, 255, 255, 0.075);
+      border-color: rgba(56, 189, 248, 0.4);
+      transform: translateY(-2px);
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4), 0 0 14px rgba(56, 189, 248, 0.15);
+    }
+
+    .match-row.active-hover {
+      border-color: rgba(56, 189, 248, 0.7);
+      background: rgba(56, 189, 248, 0.08);
+      box-shadow: 0 0 20px rgba(56, 189, 248, 0.35);
+    }
+
+    /* Puan durumundan gelince fikstürdeki maçı yakma efekti */
+    .match-row.highlight-from-standing {
+      border-color: #00ff85 !important;
+      background: rgba(0, 255, 133, 0.12) !important;
+      box-shadow: 0 0 24px rgba(0, 255, 133, 0.4), 0 4px 16px rgba(0, 0, 0, 0.6) !important;
+      transform: scale(1.02) translateX(4px);
+    }
+
+    .match-row.highlight-from-standing .match-score-box {
+      border-color: rgba(0, 255, 133, 0.6);
+      box-shadow: 0 0 12px rgba(0, 255, 133, 0.4);
+      color: #00ff85;
+    }
+
+    /* ORANLAR TOOLTIP - 3 SATIRLI ORTALI NEON YEŞİL */
+    .odds-tooltip {
+      position: absolute;
+      bottom: calc(100% + 10px);
+      left: 50%;
+      transform: translateX(-50%) translateY(4px);
+      background: #090e1a;
+      border: 1px solid rgba(0, 255, 133, 0.5);
+      border-radius: 10px;
+      padding: 9px 15px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 6px;
+      box-shadow: 0 12px 32px rgba(0, 0, 0, 0.88), 0 0 24px rgba(0, 255, 133, 0.25);
+      pointer-events: none;
+      opacity: 0;
+      visibility: hidden;
+      transition: all 0.22s cubic-bezier(0.4, 0, 0.2, 1);
+      z-index: 100;
+      white-space: nowrap;
+      min-width: 155px;
+    }
+
+    .odds-tooltip::after {
+      content: '';
+      position: absolute;
+      top: 100%;
+      left: 50%;
+      transform: translateX(-50%);
+      border-width: 6px;
+      border-style: solid;
+      border-color: #090e1a transparent transparent transparent;
+    }
+
+    .match-row:hover .odds-tooltip {
+      opacity: 1;
+      visibility: visible;
+      transform: translateX(-50%) translateY(0);
+    }
+
+    .odds-row {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 14px;
+      width: 100%;
+    }
+
+    .odds-divider-h {
+      width: 100%;
+      height: 1px;
+      background: rgba(255, 255, 255, 0.1);
+      margin: 1px 0;
+    }
+
+    .odds-item {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.86rem;
+    }
+
+    .odds-lbl {
+      color: #94a3b8;
+      font-weight: 700;
+      font-size: 0.74rem;
+    }
+
+    .odds-val {
+      color: var(--pl-neon);
+      font-weight: 800;
+      text-shadow: 0 0 8px rgba(0, 255, 133, 0.65);
+    }
+
+    .match-meta-side {
+      font-size: 0.78rem;
+      color: var(--text-muted);
+      width: 115px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-weight: 600;
+    }
+
+    .match-status-live {
+      color: #f87171;
+      font-weight: 800;
+      text-shadow: 0 0 8px rgba(248, 113, 113, 0.6);
+    }
+
+    .match-status-ms {
+      font-size: 0.72rem;
+      font-weight: 700;
+      color: #94a3b8;
+      background: rgba(255, 255, 255, 0.08);
+      padding: 1px 5px;
+      border-radius: 4px;
+    }
+
+    .match-teams-center {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      font-size: 0.92rem;
+    }
+
+    .match-team {
+      flex: 1;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      font-weight: 600;
+      color: #ffffff;
+    }
+
+    .match-team.home {
+      text-align: right;
+    }
+
+    .match-team.away {
+      text-align: left;
+    }
+
+    .match-score-box {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 54px;
+      padding: 4px 9px;
+      border-radius: 8px;
+      background: rgba(0, 0, 0, 0.5);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.96rem;
+      font-weight: 800;
+      color: #fff;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+    }
+
+    .match-tag {
+      font-size: 0.64rem;
+      font-weight: 800;
+      padding: 2px 5px;
+      border-radius: 4px;
+      margin: 0 4px;
+      background: rgba(56, 189, 248, 0.18);
+      color: #bae6fd;
+      border: 1px solid rgba(56, 189, 248, 0.3);
+    }
+
+    /* LOADING & ERROR */
+    .loading-state {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 35px;
+      color: var(--text-muted);
+      font-size: 0.9rem;
+    }
+
+    @media (max-width: 1024px) {
+      .main-content {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    /* VIEW SWITCHER & NAV TABS */
+    .nav-tabs {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      background: rgba(0, 0, 0, 0.4);
+      padding: 4px;
+      border-radius: 12px;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    .nav-tab-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 7px 15px;
+      border-radius: 9px;
+      border: 1px solid transparent;
+      background: transparent;
+      color: var(--text-muted);
+      font-family: inherit;
+      font-size: 0.86rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .nav-tab-btn:hover {
+      color: #fff;
+      background: rgba(255, 255, 255, 0.05);
+    }
+
+    .nav-tab-btn.active {
+      color: #0b0f19;
+      background: var(--pl-neon);
+      border-color: var(--pl-neon);
+      font-weight: 800;
+      box-shadow: 0 0 16px rgba(0, 255, 133, 0.5);
+    }
+
+    .nav-tab-btn.active svg {
+      stroke: #0b0f19;
+    }
+
+    .live-count-badge {
+      font-size: 0.72rem;
+      font-weight: 800;
+      padding: 1px 7px;
+      border-radius: 12px;
+      background: #00ff85;
+      color: #0b0f19;
+      box-shadow: 0 0 10px rgba(0, 255, 133, 0.7);
+      animation: neon-pulse 1.6s infinite;
+    }
+
+    .nav-tab-btn.active .live-count-badge {
+      background: #0b0f19;
+      color: #00ff85;
+      box-shadow: none;
+    }
+
+    /* CANLI SKOR VIEW CONTAINER */
+    .live-scores-view {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .live-filter-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 12px;
+      background: var(--card-bg);
+      backdrop-filter: blur(16px);
+      padding: 12px 18px;
+      border-radius: 14px;
+      border: 1px solid var(--card-border);
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+    }
+
+    .live-filter-group {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+
+    .filter-btn {
+      padding: 5px 12px;
+      border-radius: 8px;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      background: rgba(0, 0, 0, 0.35);
+      color: var(--text-muted);
+      font-size: 0.8rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.18s ease;
+    }
+
+    .filter-btn:hover {
+      color: #fff;
+      border-color: rgba(0, 255, 133, 0.3);
+    }
+
+    .filter-btn.active {
+      background: rgba(0, 255, 133, 0.15);
+      color: var(--pl-neon);
+      border-color: var(--pl-neon);
+      box-shadow: 0 0 10px rgba(0, 255, 133, 0.25);
+    }
+
+    .live-status-indicator {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.76rem;
+      color: var(--text-muted);
+      font-weight: 600;
+    }
+
+    .connection-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #10b981;
+      box-shadow: 0 0 8px #10b981;
+    }
+
+    .connection-dot.disconnected {
+      background: #f59e0b;
+      box-shadow: 0 0 8px #f59e0b;
+    }
+
+    /* LIVE SCORES GRID / LEAGUE GROUPS */
+    .live-leagues-container {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    /* TWO-COLUMN COMPACT LIVE SCORES GRID STYLING */
+    .live-sections-container {
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    .live-section-wrapper {
+      background: var(--card-bg);
+      backdrop-filter: blur(16px);
+      border: 1px solid var(--card-border);
+      border-radius: 12px;
+      overflow: hidden;
+      box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35);
+    }
+
+    .live-fav-section-title {
+      padding: 6px 14px;
+      background: rgba(234, 179, 8, 0.12);
+      border-bottom: 1px solid rgba(234, 179, 8, 0.25);
+      color: #facc15;
+      font-size: 0.74rem;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .live-regular-section-title {
+      padding: 7px 16px;
+      background: rgba(0, 0, 0, 0.35);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      color: var(--text-muted);
+      font-size: 0.72rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .live-columns-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      column-gap: 22px;
+      row-gap: 8px;
+      padding: 10px 14px;
+    }
+
+    @media (max-width: 900px) {
+      .live-columns-row {
+        grid-template-columns: 1fr;
+        column-gap: 0;
+        padding: 8px 10px;
+      }
+    }
+
+    .live-column {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .live-match-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 5px 10px;
+      background: rgba(255, 255, 255, 0.025);
+      border: 1px solid rgba(255, 255, 255, 0.07);
+      border-radius: 8px;
+      position: relative;
+      transition: all 0.15s ease;
+      height: 40px;
+      box-sizing: border-box;
+    }
+
+    .live-match-item:hover {
+      background: rgba(255, 255, 255, 0.06);
+      border-color: rgba(255, 255, 255, 0.16);
+    }
+
+    .live-match-item.is-fav {
+      background: rgba(234, 179, 8, 0.04);
+      border-color: rgba(250, 204, 21, 0.3);
+    }
+
+    .live-match-item:hover .odds-tooltip {
+      visibility: visible;
+      opacity: 1;
+      transform: translateX(-50%) translateY(0);
+    }
+
+    /* Favori Butonu */
+    .live-fav-btn {
+      background: transparent;
+      border: none;
+      color: rgba(255, 255, 255, 0.2);
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 2px 4px;
+      margin-right: 6px;
+      border-radius: 4px;
+      transition: all 0.2s ease;
+      font-size: 0.88rem;
+      flex-shrink: 0;
+    }
+
+    .live-fav-btn:hover {
+      color: #facc15;
+      transform: scale(1.15);
+    }
+
+    .live-fav-btn.active {
+      color: #facc15;
+      filter: drop-shadow(0 0 5px rgba(250, 204, 21, 0.7));
+    }
+
+    /* Tek ve Net Durum Rozeti (Başlamadıysa Saat, Başladıysa Dakika, Bittiyse MS) */
+    .live-status-badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 3px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.72rem;
+      font-weight: 800;
+      padding: 2px 6px;
+      border-radius: 4px;
+      min-width: 46px;
+      text-align: center;
+      flex-shrink: 0;
+    }
+
+    .live-status-badge.playing {
+      background: rgba(0, 255, 133, 0.14);
+      color: #00ff85;
+      border: 1px solid rgba(0, 255, 133, 0.4);
+      box-shadow: 0 0 10px rgba(0, 255, 133, 0.22);
+    }
+
+    .live-status-badge.playing .pulse-dot {
+      width: 5px;
+      height: 5px;
+      border-radius: 50%;
+      background: var(--pl-neon);
+      box-shadow: 0 0 6px var(--pl-neon);
+      animation: neon-pulse 1.2s infinite;
+    }
+
+    .live-status-badge.played {
+      background: rgba(255, 255, 255, 0.07);
+      color: var(--text-muted);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .live-status-badge.fixture {
+      background: rgba(56, 189, 248, 0.1);
+      color: #bae6fd;
+      border: 1px solid rgba(56, 189, 248, 0.22);
+    }
+
+    .live-match-main {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      margin: 0 8px;
+      min-width: 0;
+    }
+
+    .live-team {
+      flex: 1;
+      font-size: 0.86rem;
+      font-weight: 600;
+      color: #ffffff;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .live-team.home {
+      text-align: right;
+    }
+
+    .live-team.away {
+      text-align: left;
+    }
+
+    .live-score-display {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 54px;
+      padding: 3px 8px;
+      border-radius: 6px;
+      background: rgba(0, 0, 0, 0.6);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.95rem;
+      font-weight: 800;
+      color: #fff;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+      transition: all 0.25s ease;
+    }
+
+    .live-score-display.live-active {
+      border-color: rgba(0, 255, 133, 0.5);
+      color: #00ff85;
+      box-shadow: 0 0 12px rgba(0, 255, 133, 0.25);
+    }
+
+    .live-score-display.goal-flash {
+      background: rgba(0, 255, 133, 0.35) !important;
+      border-color: var(--pl-neon) !important;
+      color: #00ff85 !important;
+      box-shadow: 0 0 25px rgba(0, 255, 133, 0.9), inset 0 0 10px rgba(0, 255, 133, 0.5) !important;
+      animation: goal-glow 0.8s infinite alternate;
+    }
+
+    @keyframes goal-glow {
+      0% { transform: scale(1); filter: brightness(1); }
+      100% { transform: scale(1.1); filter: brightness(1.3); }
+    }
+
+    .live-ht-score {
+      font-size: 0.72rem;
+      color: var(--text-muted);
+      font-family: 'JetBrains Mono', monospace;
+      width: 55px;
+      text-align: right;
+      flex-shrink: 0;
+    }
+  </style>
+</head>
+<body>
+  <div class="app-container">
+    <!-- TOP HEADER -->
+    <header>
+      <div class="header-left">
+        <div class="header-title">
+          Futbol Ligleri
+          <span class="live-indicator">
+            <span class="live-dot"></span> Canlı
+          </span>
+        </div>
+
+        <!-- LİG SEÇİM LİSTBOX (Sadece Ligler & Fikstür görünümünde) -->
+        <div class="league-select-wrapper" id="league-select-container">
+          <span class="league-select-label">Lig:</span>
+          <select class="league-selector" id="league-select" onchange="onLeagueChanged(this.value)">
+            <!-- JS ile dinamik dolacak -->
+          </select>
+        </div>
+
+        <div class="header-meta" id="sub-title">Yükleniyor...</div>
+      </div>
+
+      <!-- MODÜL SEKMELERİ (LİGLER & FİKSTÜR / CANLI SKORLAR) -->
+      <div class="nav-tabs">
+        <button class="nav-tab-btn active" id="tab-btn-leagues" onclick="switchMainView('leagues')">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M18 20V10M12 20V4M6 20v-6"/></svg>
+          Ligler & Fikstür
+        </button>
+        <button class="nav-tab-btn" id="tab-btn-livescores" onclick="switchMainView('livescores')">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+          Canlı Skorlar
+          <span class="live-count-badge" id="live-tab-badge" style="display:none;">0</span>
+        </button>
+      </div>
+    </header>
+
+    <div id="error-container"></div>
+
+    <!-- 1. GÖRÜNÜM: PUAN DURUMU & FİKSTÜR -->
+    <div class="main-content" id="leagues-view">
+      <!-- SOL: PUAN DURUMU -->
+      <section class="panel">
+        <div class="panel-header">
+          <div class="panel-title">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#00ff85" stroke-width="2.5"><path d="M18 20V10M12 20V4M6 20v-6"/></svg>
+            Puan Durumu
+          </div>
+          <div style="font-size: 0.74rem; color: var(--text-muted); display: flex; align-items: center; gap: 8px;">
+            <span><span style="color: #38bdf8;">■</span> Eşleşen Takımlar</span>
+          </div>
+        </div>
+        <div class="panel-body" id="standings-content">
+          <div class="loading-state">Puan durumu yükleniyor...</div>
+        </div>
+      </section>
+
+      <!-- SAĞ: FİKSTÜR -->
+      <section class="panel">
+        <div class="panel-header">
+          <div class="panel-title">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#38bdf8" stroke-width="2.5"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/></svg>
+            Fikstür & Maçlar
+          </div>
+
+          <div class="fixture-controls">
+            <button class="week-nav-btn" id="prev-week-btn" onclick="changeWeek(-1)" title="Önceki Hafta">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M15 18l-6-6 6-6"/></svg>
+            </button>
+            <select class="week-selector" id="week-selector" onchange="selectWeek(this.value)">
+              <!-- Hafta seçenekleri -->
+            </select>
+            <button class="week-nav-btn" id="next-week-btn" onclick="changeWeek(1)" title="Sonraki Hafta">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M9 18l6-6-6-6"/></svg>
+            </button>
+          </div>
+        </div>
+
+        <div class="panel-body" id="fixture-content">
+          <div class="loading-state">Fikstür yükleniyor...</div>
+        </div>
+      </section>
+    </div>
+
+    <!-- 2. GÖRÜNÜM: CANLI SKORLAR (16 LİG) -->
+    <div class="live-scores-view" id="livescores-view" style="display: none;">
+      <!-- FİLTRELEME & CANLI BAĞLANTI BİLGİSİ -->
+      <div class="live-filter-bar">
+        <div class="live-filter-group">
+          <button class="filter-btn active" id="filter-all" onclick="filterLiveStatus('all')">Tüm Maçlar (<span id="count-all">0</span>)</button>
+          <button class="filter-btn" id="filter-live" onclick="filterLiveStatus('live')">⚡ Canlı (<span id="count-live">0</span>)</button>
+          <button class="filter-btn" id="filter-played" onclick="filterLiveStatus('played')">Bitenler (<span id="count-played">0</span>)</button>
+          <button class="filter-btn" id="filter-fixture" onclick="filterLiveStatus('fixture')">Başlamamış (<span id="count-fixture">0</span>)</button>
+          <button class="filter-btn" id="filter-favorites" onclick="filterLiveStatus('favorites')">★ Favorilerim (<span id="count-fav">0</span>)</button>
+        </div>
+
+        <div class="live-status-indicator">
+          <span class="connection-dot" id="live-conn-dot"></span>
+          <span id="live-conn-status">Sahadan Canlı Yayını Bağlandı</span>
+        </div>
+      </div>
+
+      <!-- MAÇ LİSTESİ KONTEYNERİ -->
+      <div class="live-leagues-container" id="live-matches-container">
+        <div class="loading-state">Bugünün maçları yükleniyor...</div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // EMBEDDED_DATA_PLACEHOLDER
+    const allLeaguesState = typeof window.INITIAL_ALL_LEAGUES !== "undefined" ? window.INITIAL_ALL_LEAGUES : { leagues_list: [], data: {}, live_scores_today: [] };
+    let currentLeagueId = allLeaguesState.default_league || (allLeaguesState.leagues_list[0]?.id || "");
+    let currentLeagueData = allLeaguesState.data[currentLeagueId] || null;
+    let selectedWeekIndex = 0;
+
+    let currentMainView = "leagues"; // 'leagues' | 'livescores'
+    let currentLiveFilter = "all";   // 'all' | 'live' | 'played' | 'fixture' | 'favorites'
+    let liveScoresList = allLeaguesState.live_scores_today || [];
+    let liveScoresMap = {}; // match_id -> match object
+
+    // Favoriler (localStorage'da saklanır)
+    let favoriteMatchIds = new Set();
+    try {
+      const savedFavs = localStorage.getItem("agy_fav_matches");
+      if (savedFavs) {
+        favoriteMatchIds = new Set(JSON.parse(savedFavs));
+      }
+    } catch (e) {
+      favoriteMatchIds = new Set();
+    }
+
+    function toggleFavoriteMatch(mid, event) {
+      if (event) {
+        event.stopPropagation();
+      }
+      const sMid = String(mid);
+      if (favoriteMatchIds.has(sMid)) {
+        favoriteMatchIds.delete(sMid);
+      } else {
+        favoriteMatchIds.add(sMid);
+      }
+      try {
+        localStorage.setItem("agy_fav_matches", JSON.stringify(Array.from(favoriteMatchIds)));
+      } catch (e) {}
+
+      updateLiveCounts();
+      renderLiveScores();
+    }
+
+    // Gol Bildirimi (Net, kısa ve kulağı yormayan elektronik bip sesi)
+    let audioCtx = null;
+    function playGoalSound() {
+      try {
+        const AudioContext = window.AudioContext || window.webkitAudioContext;
+        if (!AudioContext) return;
+        if (!audioCtx) {
+          audioCtx = new AudioContext();
+        }
+        if (audioCtx.state === "suspended") {
+          audioCtx.resume();
+        }
+
+        const now = audioCtx.currentTime;
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = "sine";
+        osc.frequency.setValueAtTime(960, now);
+        gain.gain.setValueAtTime(0.28, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.1);
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start(now);
+        osc.stop(now + 0.1);
+      } catch (err) {
+        console.warn("Ses çalma hatası:", err);
+      }
+    }
+
+    function initApp() {
+      // Index matches (hem numeric match_id hem uuid ile eşleşebilmesi için)
+      liveScoresList.forEach(m => {
+        if (m.match_id != null) {
+          liveScoresMap[String(m.match_id)] = m;
+        }
+        if (m.uuid != null) {
+          liveScoresMap[String(m.uuid)] = m;
+        }
+        if (m.match_uuid != null) {
+          liveScoresMap[String(m.match_uuid)] = m;
+        }
+      });
+
+      renderLeagueDropdown();
+      loadCurrentLeague();
+      updateLiveCounts();
+      renderLiveScores();
+      initLiveSocket();
+    }
+
+    function switchMainView(view) {
+      currentMainView = view;
+      const leaguesView = document.getElementById("leagues-view");
+      const liveView = document.getElementById("livescores-view");
+      const btnLeagues = document.getElementById("tab-btn-leagues");
+      const btnLive = document.getElementById("tab-btn-livescores");
+      const leagueSelector = document.getElementById("league-select-container");
+      const subTitle = document.getElementById("sub-title");
+
+      if (view === "leagues") {
+        leaguesView.style.display = "grid";
+        liveView.style.display = "none";
+        btnLeagues.classList.add("active");
+        btnLive.classList.remove("active");
+        leagueSelector.style.display = "flex";
+        const teamCount = currentLeagueData?.standings?.length || 0;
+        const weekCount = currentLeagueData?.weeks?.length || 0;
+        subTitle.innerText = `${teamCount} Takım • ${weekCount} Hafta`;
+      } else {
+        leaguesView.style.display = "none";
+        liveView.style.display = "flex";
+        btnLeagues.classList.remove("active");
+        btnLive.classList.add("active");
+        leagueSelector.style.display = "none";
+        subTitle.innerText = `Bugün 16 Ligde ${liveScoresList.length} Maç`;
+        renderLiveScores();
+      }
+    }
+
+    function filterLiveStatus(status) {
+      currentLiveFilter = status;
+      document.querySelectorAll(".filter-btn").forEach(btn => btn.classList.remove("active"));
+      const activeBtn = document.getElementById(`filter-${status}`);
+      if (activeBtn) activeBtn.classList.add("active");
+      renderLiveScores();
+    }
+
+    function renderLeagueDropdown() {
+      const select = document.getElementById("league-select");
+      const list = allLeaguesState.leagues_list || [];
+
+      select.innerHTML = list.map(l => {
+        return `<option value="${l.id}" ${l.id === currentLeagueId ? 'selected' : ''}>${l.name} (${l.country})</option>`;
+      }).join("");
+    }
+
+    function onLeagueChanged(leagueId) {
+      currentLeagueId = leagueId;
+      loadCurrentLeague();
+    }
+
+    function loadCurrentLeague() {
+      currentLeagueData = allLeaguesState.data[currentLeagueId] || null;
+      if (!currentLeagueData) {
+        document.getElementById("standings-content").innerHTML = "<div class='loading-state'>Bu lige ait veri bulunamadı.</div>";
+        document.getElementById("fixture-content").innerHTML = "<div class='loading-state'>Bu lige ait veri bulunamadı.</div>";
+        return;
+      }
+
+      selectedWeekIndex = currentLeagueData.current_week_index || 0;
+      const teamCount = currentLeagueData.standings?.length || 0;
+      const weekCount = currentLeagueData.weeks?.length || 0;
+      document.getElementById("sub-title").innerText = `${teamCount} Takım • ${weekCount} Hafta`;
+
+      renderStandings();
+      renderWeekSelector();
+      renderFixture();
+    }
+
+    function renderStandings() {
+      const standings = currentLeagueData?.standings || [];
+      const container = document.getElementById("standings-content");
+
+      if (!standings.length) {
+        container.innerHTML = "<div class='loading-state'>Puan tablosu bulunamadı.</div>";
+        return;
+      }
+
+      let html = `
+        <table>
+          <thead>
+            <tr>
+              <th style="width: 32px;">#</th>
+              <th>Takım</th>
+              <th class="center" title="Oynanan Maç">O</th>
+              <th class="center" title="Galibiyet">G</th>
+              <th class="center" title="Beraberlik">B</th>
+              <th class="center" title="Mağlubiyet">M</th>
+              <th class="center" title="Attığı Gol">A</th>
+              <th class="center" title="Yediği Gol">Y</th>
+              <th class="center" title="Averaj">AV</th>
+              <th class="center" title="Puan">P</th>
+              <th class="center" title="Son 5 Maç">Form</th>
+            </tr>
+          </thead>
+          <tbody>
+      `;
+
+      standings.forEach(row => {
+        const teamId = row.team_id;
+        const zoneColor = row.zone?.color || 'transparent';
+        const series = (row.serie || "").split("");
+
+        let serieBadges = series.map(s => {
+          let label = s;
+          if (s === "W") label = "G";
+          if (s === "D") label = "B";
+          if (s === "L") label = "M";
+          return `<span class="serie-badge serie-${s}">${label}</span>`;
+        }).join("");
+
+        html += `
+          <tr id="team-row-${teamId}" 
+              data-team-id="${teamId}"
+              onmouseenter="highlightMatchByTeam(${teamId}, this)"
+              onmouseleave="unhighlightMatchByTeam(this)">
+            <td>
+              <div class="rank-cell">
+                <span class="zone-indicator" style="background-color: ${zoneColor};" title="${row.zone?.name || ''}"></span>
+                <span>${row.rank}</span>
+              </div>
+            </td>
+            <td>
+              <span class="team-name">${row.display_name || row.name}</span>
+            </td>
+            <td class="center">${row.played}</td>
+            <td class="center">${row.win}</td>
+            <td class="center">${row.draw}</td>
+            <td class="center">${row.lost}</td>
+            <td class="center">${row.pro}</td>
+            <td class="center">${row.against}</td>
+            <td class="center" style="font-weight: 700; font-size: 0.82rem; color: ${row.diff > 0 ? '#10b981' : row.diff < 0 ? '#ef4444' : '#94a3b8'};">
+              ${row.diff > 0 ? '+' + row.diff : row.diff}
+            </td>
+            <td class="center pts-cell">${row.pts}</td>
+            <td class="center">
+              <div class="serie-cell">${serieBadges}</div>
+            </td>
+          </tr>
+        `;
+      });
+
+      html += `</tbody></table>`;
+      container.innerHTML = html;
+    }
+
+    function renderWeekSelector() {
+      const selector = document.getElementById("week-selector");
+      const weeks = currentLeagueData?.weeks || [];
+
+      selector.innerHTML = weeks.map((w, idx) => {
+        return `<option value="${idx}" ${idx === selectedWeekIndex ? 'selected' : ''}>Hafta ${w.week}</option>`;
+      }).join("");
+
+      updateNavButtons();
+    }
+
+    function selectWeek(idx) {
+      selectedWeekIndex = parseInt(idx, 10);
+      updateNavButtons();
+      renderFixture();
+    }
+
+    function changeWeek(delta) {
+      const weeks = currentLeagueData?.weeks || [];
+      const newIdx = selectedWeekIndex + delta;
+      if (newIdx >= 0 && newIdx < weeks.length) {
+        selectedWeekIndex = newIdx;
+        document.getElementById("week-selector").value = newIdx;
+        updateNavButtons();
+        renderFixture();
+      }
+    }
+
+    function updateNavButtons() {
+      const weeks = currentLeagueData?.weeks || [];
+      document.getElementById("prev-week-btn").disabled = (selectedWeekIndex <= 0);
+      document.getElementById("next-week-btn").disabled = (selectedWeekIndex >= weeks.length - 1);
+    }
+
+    function renderFixture() {
+      const container = document.getElementById("fixture-content");
+      const weeks = currentLeagueData?.weeks || [];
+      const currentWeek = weeks[selectedWeekIndex];
+
+      if (!currentWeek || !currentWeek.matches || !currentWeek.matches.length) {
+        container.innerHTML = "<div class='loading-state'>Bu haftaya ait maç bulunamadı.</div>";
+        return;
+      }
+
+      let html = `<div class="matches-list">`;
+
+      currentWeek.matches.forEach(m => {
+        const home = m.home_team;
+        const away = m.away_team;
+        const homeId = home.id;
+        const awayId = away.id;
+
+        const homeScore = m.home_score !== null && m.home_score !== undefined ? m.home_score : '-';
+        const awayScore = m.away_score !== null && m.away_score !== undefined ? m.away_score : '-';
+
+        let statusText = "Fikstür";
+        if (m.status === "Played") statusText = "MS";
+        else if (m.status === "Playing" || m.status === "Live") statusText = "Canlı";
+
+        let dateStr = "";
+        if (m.date_time) {
+          try {
+            // Sahadan API tarihi UTC olarak veriyor (date_time_utc: YYYY-MM-DD HH:MM:SS)
+            // 'Z' ekleyerek UTC olduğunu belirtiyoruz, böylece tarayıcı otomatik olarak yerel saate (örn: +3 Türkiye) çevirir
+            const d = new Date(m.date_time.replace(" ", "T") + "Z");
+            const datePart = d.toLocaleDateString("tr-TR", { day: "numeric", month: "short", weekday: "short" });
+            const timePart = d.toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" });
+            dateStr = `${datePart} ${timePart}`;
+          } catch(e) {
+            dateStr = m.match_time || "";
+          }
+        }
+
+        let statusBadgeHtml = "";
+        if (m.status === "Played") {
+          statusBadgeHtml = `<span class="match-status-ms">MS</span>`;
+        } else if (m.status === "Playing" || m.status === "Live") {
+          statusBadgeHtml = `<span class="match-status-live">● CANLI</span>`;
+        }
+
+        let oddsHtml = "";
+        if (m.odds && m.odds.ms1) {
+          let rows = [];
+          
+          // 1. Satır: 1 - 0 - 2 (Maç Sonucu)
+          rows.push(`
+            <div class="odds-row">
+              <div class="odds-item"><span class="odds-lbl">1:</span><span class="odds-val">${m.odds.ms1}</span></div>
+              <div class="odds-item"><span class="odds-lbl">0:</span><span class="odds-val">${m.odds.ms0}</span></div>
+              <div class="odds-item"><span class="odds-lbl">2:</span><span class="odds-val">${m.odds.ms2}</span></div>
+            </div>
+          `);
+
+          // 2. Satır: Var / Yok (Karşılıklı Gol)
+          if (m.odds.kg_var && m.odds.kg_yok) {
+            rows.push(`
+              <div class="odds-divider-h"></div>
+              <div class="odds-row">
+                <div class="odds-item"><span class="odds-lbl">Var:</span><span class="odds-val">${m.odds.kg_var}</span></div>
+                <div class="odds-item"><span class="odds-lbl">Yok:</span><span class="odds-val">${m.odds.kg_yok}</span></div>
+              </div>
+            `);
+          }
+
+          // 3. Satır: Alt / Üst (2.5 Gol)
+          if (m.odds.alt && m.odds.ust) {
+            rows.push(`
+              <div class="odds-divider-h"></div>
+              <div class="odds-row">
+                <div class="odds-item"><span class="odds-lbl">Alt:</span><span class="odds-val">${m.odds.alt}</span></div>
+                <div class="odds-item"><span class="odds-lbl">Üst:</span><span class="odds-val">${m.odds.ust}</span></div>
+              </div>
+            `);
+          }
+
+          oddsHtml = `
+            <div class="odds-tooltip">
+              ${rows.join("")}
+            </div>
+          `;
+        }
+
+        html += `
+          <div class="match-row" 
+               id="match-${m.id}"
+               data-home-id="${homeId}"
+               data-away-id="${awayId}"
+               onmouseenter="highlightTeams(${homeId}, ${awayId}, this)"
+               onmouseleave="unhighlightTeams(this)">
+            
+            ${oddsHtml}
+
+            <div class="match-meta-side">
+              <span>${dateStr}</span>
+              ${statusBadgeHtml}
+            </div>
+
+            <div class="match-teams-center">
+              <div class="match-team home">
+                ${home.display_name || home.name}
+              </div>
+              <div class="match-score-box">
+                ${homeScore} : ${awayScore}
+              </div>
+              <div class="match-team away">
+                ${away.display_name || away.name}
+              </div>
+            </div>
+          </div>
+        `;
+      });
+
+      html += `</div>`;
+      container.innerHTML = html;
+    }
+
+    // Fikstürdeki maçın üzerine gelindiğinde puan tablosundaki iki takımı yak
+    function highlightTeams(homeId, awayId, cardEl) {
+      clearHighlights();
+      if (cardEl) cardEl.classList.add("active-hover");
+
+      const homeRow = document.getElementById(`team-row-${homeId}`);
+      const awayRow = document.getElementById(`team-row-${awayId}`);
+
+      if (homeRow) homeRow.classList.add("highlight-home");
+      if (awayRow) awayRow.classList.add("highlight-away");
+    }
+
+    function unhighlightTeams(cardEl) {
+      if (cardEl) cardEl.classList.remove("active-hover");
+      clearHighlights();
+    }
+
+    // Puan tablosundaki bir takımın üzerine gelindiğinde fikstürdeki maçını yak
+    function highlightMatchByTeam(teamId, rowEl) {
+      clearHighlights();
+      if (rowEl) rowEl.classList.add("highlight-home");
+
+      // Fikstürde bu takımın (ev sahibi veya deplasman) oynadığı maçı bul
+      const matchRow = document.querySelector(`.match-row[data-home-id="${teamId}"], .match-row[data-away-id="${teamId}"]`);
+      if (matchRow) {
+        matchRow.classList.add("highlight-from-standing");
+        // Rakip takımı da puan tablosunda hafif neon maviyle belirginleştir
+        const homeId = matchRow.getAttribute("data-home-id");
+        const awayId = matchRow.getAttribute("data-away-id");
+        const opponentId = String(teamId) === String(homeId) ? awayId : homeId;
+        const opponentRow = document.getElementById(`team-row-${opponentId}`);
+        if (opponentRow) {
+          opponentRow.classList.add("highlight-away");
+        }
+      }
+    }
+
+    function unhighlightMatchByTeam(rowEl) {
+      if (rowEl) rowEl.classList.remove("highlight-home");
+      clearHighlights();
+    }
+
+    function clearHighlights() {
+      document.querySelectorAll("tr.highlight-home").forEach(el => el.classList.remove("highlight-home"));
+      document.querySelectorAll("tr.highlight-away").forEach(el => el.classList.remove("highlight-away"));
+      document.querySelectorAll(".match-row.active-hover").forEach(el => el.classList.remove("active-hover"));
+      document.querySelectorAll(".match-row.highlight-from-standing").forEach(el => el.classList.remove("highlight-from-standing"));
+    }
+
+    /* =========================================================================
+       CANLI SKORLAR MODÜLÜ (16 LİG) VE REAL-TIME SOCKET.IO ENTEGRASYONU
+       ========================================================================= */
+
+    function updateLiveCounts() {
+      let liveCount = 0;
+      let playedCount = 0;
+      let fixtureCount = 0;
+      let favCount = 0;
+
+      liveScoresList.forEach(m => {
+        const s = (m.status || "").toLowerCase();
+        if (s === "playing") liveCount++;
+        else if (s === "played") playedCount++;
+        else fixtureCount++;
+
+        if (favoriteMatchIds.has(String(m.match_id))) {
+          favCount++;
+        }
+      });
+
+      const countAllEl = document.getElementById("count-all");
+      const countLiveEl = document.getElementById("count-live");
+      const countPlayedEl = document.getElementById("count-played");
+      const countFixtureEl = document.getElementById("count-fixture");
+      const countFavEl = document.getElementById("count-fav");
+      const liveBadge = document.getElementById("live-tab-badge");
+
+      if (countAllEl) countAllEl.innerText = liveScoresList.length;
+      if (countLiveEl) countLiveEl.innerText = liveCount;
+      if (countPlayedEl) countPlayedEl.innerText = playedCount;
+      if (countFixtureEl) countFixtureEl.innerText = fixtureCount;
+      if (countFavEl) countFavEl.innerText = favCount;
+
+      if (liveBadge) {
+        if (liveCount > 0) {
+          liveBadge.innerText = liveCount;
+          liveBadge.style.display = "inline-block";
+        } else {
+          liveBadge.style.display = "none";
+        }
+      }
+    }
+
+    // Maç saatini yerel saate (Türkiye TSI UTC+3) çevir
+    function getMatchLocalTime(m) {
+      if (m.date_time) {
+        try {
+          const iso = m.date_time.replace(" ", "T") + (m.date_time.endsWith("Z") ? "" : "Z");
+          const d = new Date(iso);
+          if (!isNaN(d.getTime())) {
+            return d.toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" });
+          }
+        } catch (e) {}
+      }
+      if (m.match_time && m.match_time.includes(":")) {
+        try {
+          const parts = m.match_time.split(":");
+          let h = (parseInt(parts[0], 10) + 3) % 24;
+          return `${String(h).padStart(2, "0")}:${parts[1]}`;
+        } catch (e) {}
+      }
+      return m.match_time || "—";
+    }
+
+    // Maçları saate göre sırala (kronolojik)
+    function compareMatchTimes(a, b) {
+      const timeA = a.date_time || a.match_time || "99:99";
+      const timeB = b.date_time || b.match_time || "99:99";
+      return timeA.localeCompare(timeB);
+    }
+
+    function renderMatchRow(m, isFav) {
+      const status = (m.status || "").toLowerCase();
+      const isLive = status === "playing";
+      const isPlayed = status === "played";
+      
+      let badgeHtml = "";
+      let badgeClass = "fixture";
+
+      if (isLive) {
+        badgeClass = "playing";
+        const p = m.period || "";
+        if (p === "Half Time" || p === "Devre Arası") {
+          badgeHtml = `<span class="pulse-dot"></span> İY`;
+        } else {
+          let minVal = m.minute ? `${m.minute}'` : "CANLI";
+          if (m.minute && m.minute_extra) {
+            minVal = `${m.minute}+${m.minute_extra}'`;
+          }
+          badgeHtml = `<span class="pulse-dot"></span> ${minVal}`;
+        }
+      } else if (isPlayed) {
+        badgeClass = "played";
+        badgeHtml = "MS";
+      } else {
+        badgeClass = "fixture";
+        badgeHtml = getMatchLocalTime(m);
+      }
+
+      let scoreDisplay = "";
+      if (isLive || isPlayed) {
+        const hSc = (m.home_score !== null && m.home_score !== undefined) ? m.home_score : 0;
+        const aSc = (m.away_score !== null && m.away_score !== undefined) ? m.away_score : 0;
+        scoreDisplay = `${hSc} : ${aSc}`;
+      } else {
+        scoreDisplay = "- : -";
+      }
+
+      let htScoreText = "";
+      if ((isLive || isPlayed) && m.half_time_home !== null && m.half_time_home !== undefined) {
+        htScoreText = `İY ${m.half_time_home}:${m.half_time_away}`;
+      }
+
+      // Oranlar Tooltip (Varsa)
+      let oddsHtml = "";
+      if (m.odds) {
+        let rows = [];
+        if (m.odds.ms1 && m.odds.ms0 && m.odds.ms2) {
+          rows.push(`
+            <div class="odds-row">
+              <div class="odds-item"><span class="odds-lbl">1:</span><span class="odds-val">${m.odds.ms1}</span></div>
+              <div class="odds-item"><span class="odds-lbl">X:</span><span class="odds-val">${m.odds.ms0}</span></div>
+              <div class="odds-item"><span class="odds-lbl">2:</span><span class="odds-val">${m.odds.ms2}</span></div>
+            </div>
+          `);
+        }
+        if (m.odds.kg_var && m.odds.kg_yok) {
+          rows.push(`
+            <div class="odds-divider-h"></div>
+            <div class="odds-row">
+              <div class="odds-item"><span class="odds-lbl">KG Var:</span><span class="odds-val">${m.odds.kg_var}</span></div>
+              <div class="odds-item"><span class="odds-lbl">KG Yok:</span><span class="odds-val">${m.odds.kg_yok}</span></div>
+            </div>
+          `);
+        }
+        if (m.odds.alt && m.odds.ust) {
+          rows.push(`
+            <div class="odds-divider-h"></div>
+            <div class="odds-row">
+              <div class="odds-item"><span class="odds-lbl">Alt:</span><span class="odds-val">${m.odds.alt}</span></div>
+              <div class="odds-item"><span class="odds-lbl">Üst:</span><span class="odds-val">${m.odds.ust}</span></div>
+            </div>
+          `);
+        }
+        oddsHtml = `<div class="odds-tooltip">${rows.join("")}</div>`;
+      }
+
+      const favIcon = isFav ? "★" : "☆";
+      const favClass = isFav ? "active" : "";
+
+      return `
+        <div class="live-match-item ${isFav ? 'is-fav' : ''}" id="live-card-${m.match_id}">
+          ${oddsHtml}
+          
+          <!-- Favori Butonu -->
+          <button class="live-fav-btn ${favClass}" 
+                  onclick="toggleFavoriteMatch('${m.match_id}', event)" 
+                  title="${isFav ? 'Favorilerden Çıkar' : 'Favorilere Ekle'}">
+            ${favIcon}
+          </button>
+
+          <!-- Durum Rozeti: Başlamadıysa Saat, Başladıysa Dakika, Bittiyse MS -->
+          <span class="live-status-badge ${badgeClass}" id="live-badge-${m.match_id}">${badgeHtml}</span>
+
+          <!-- Takımlar ve Skor -->
+          <div class="live-match-main">
+            <div class="live-team home" title="${m.home_team}">${m.home_team}</div>
+            <div class="live-score-display ${isLive ? 'live-active' : ''}" id="live-score-${m.match_id}">
+              ${scoreDisplay}
+            </div>
+            <div class="live-team away" title="${m.away_team}">${m.away_team}</div>
+          </div>
+
+          <!-- Devre Skoru -->
+          <div class="live-ht-score" id="live-ht-${m.match_id}">${htScoreText}</div>
+        </div>
+      `;
+    }
+
+    // Önce Sütun 1 dolsun, sonra Sütun 2'ye geçsin (Column-first sıralama)
+    function renderMatchesTwoColumns(matches, isFav) {
+      if (!matches || !matches.length) return "";
+      if (matches.length === 1) {
+        return `
+          <div class="live-columns-row">
+            <div class="live-column">${renderMatchRow(matches[0], isFav)}</div>
+            <div class="live-column"></div>
+          </div>
+        `;
+      }
+      const mid = Math.ceil(matches.length / 2);
+      const col1 = matches.slice(0, mid);
+      const col2 = matches.slice(mid);
+
+      return `
+        <div class="live-columns-row">
+          <div class="live-column">
+            ${col1.map(m => renderMatchRow(m, isFav)).join("")}
+          </div>
+          <div class="live-column">
+            ${col2.map(m => renderMatchRow(m, isFav)).join("")}
+          </div>
+        </div>
+      `;
+    }
+
+    function renderLiveScores() {
+      const container = document.getElementById("live-matches-container");
+      if (!container) return;
+
+      if (!liveScoresList.length) {
+        container.innerHTML = "<div class='loading-state'>16 ligde bugün için planlanmış maç bulunamadı.</div>";
+        return;
+      }
+
+      // Filtreleme
+      let filtered = liveScoresList.filter(m => {
+        const s = (m.status || "").toLowerCase();
+        const isFav = favoriteMatchIds.has(String(m.match_id));
+        if (currentLiveFilter === "favorites") return isFav;
+        if (currentLiveFilter === "live") return s === "playing";
+        if (currentLiveFilter === "played") return s === "played";
+        if (currentLiveFilter === "fixture") return s === "fixture" || (s !== "playing" && s !== "played");
+        return true;
+      });
+
+      if (!filtered.length) {
+        container.innerHTML = "<div class='loading-state'>Seçilen kriterde maç bulunamadı.</div>";
+        return;
+      }
+
+      // Favoriler ve Diğerleri olarak ayır
+      const favMatches = [];
+      const regularMatches = [];
+
+      filtered.forEach(m => {
+        if (favoriteMatchIds.has(String(m.match_id))) {
+          favMatches.push(m);
+        } else {
+          regularMatches.push(m);
+        }
+      });
+
+      favMatches.sort((a, b) => {
+        const aPlayed = (a.status || "").toLowerCase() === "played";
+        const bPlayed = (b.status || "").toLowerCase() === "played";
+        if (aPlayed && !bPlayed) return 1;
+        if (!aPlayed && bPlayed) return -1;
+        return compareMatchTimes(a, b);
+      });
+      regularMatches.sort(compareMatchTimes);
+
+      let html = `<div class="live-sections-container">`;
+
+      // 1. Favoriler Bölümü (varsa)
+      if (favMatches.length > 0) {
+        html += `
+          <div class="live-section-wrapper">
+            <div class="live-fav-section-title">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="#facc15" stroke="#facc15" stroke-width="1"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+              Favori Maçlarım (${favMatches.length})
+            </div>
+            ${renderMatchesTwoColumns(favMatches, true)}
+          </div>
+        `;
+      }
+
+      // 2. Normal Maçlar Bölümü (Tümü veya diğer filtrelerde)
+      if (currentLiveFilter !== "favorites" && regularMatches.length > 0) {
+        html += `
+          <div class="live-section-wrapper">
+            ${favMatches.length > 0 ? `
+              <div class="live-regular-section-title">
+                Tüm Maçlar (Saate Göre)
+              </div>
+            ` : ''}
+            ${renderMatchesTwoColumns(regularMatches, false)}
+          </div>
+        `;
+      }
+
+      html += `</div>`;
+      container.innerHTML = html;
+    }
+
+    function findMatchObject(update) {
+      if (!update) return null;
+      if (update.id != null) {
+        const m = liveScoresMap[String(update.id)];
+        if (m) return m;
+      }
+      if (update.match_id != null) {
+        const m = liveScoresMap[String(update.match_id)];
+        if (m) return m;
+      }
+      if (update.uuid != null) {
+        const m = liveScoresMap[String(update.uuid)];
+        if (m) return m;
+      }
+      if (update.match_uuid != null) {
+        const m = liveScoresMap[String(update.match_uuid)];
+        if (m) return m;
+      }
+      return null;
+    }
+
+    // Gerçek zamanlı maç güncellemesi (Sahadan WebSocket'inden anlık push gelir)
+    function applyLiveMatchUpdate(update) {
+      const m = findMatchObject(update);
+      if (!m) return;
+
+      const mid = String(m.match_id);
+      let scoreChanged = false;
+      let goalScored = false;
+
+      // Skor kontrolü
+      if (update.fts_A !== undefined && update.fts_A !== null) {
+        const newHome = parseInt(update.fts_A, 10);
+        const oldHome = (m.home_score !== null && m.home_score !== undefined && !isNaN(parseInt(m.home_score, 10))) ? parseInt(m.home_score, 10) : null;
+        if (oldHome !== null && newHome > oldHome) goalScored = true;
+        if (newHome !== m.home_score) scoreChanged = true;
+        m.home_score = newHome;
+      }
+      if (update.fts_B !== undefined && update.fts_B !== null) {
+        const newAway = parseInt(update.fts_B, 10);
+        const oldAway = (m.away_score !== null && m.away_score !== undefined && !isNaN(parseInt(m.away_score, 10))) ? parseInt(m.away_score, 10) : null;
+        if (oldAway !== null && newAway > oldAway) goalScored = true;
+        if (newAway !== m.away_score) scoreChanged = true;
+        m.away_score = newAway;
+      }
+
+      if (update.hts_A !== undefined && update.hts_A !== null) m.half_time_home = update.hts_A;
+      if (update.hts_B !== undefined && update.hts_B !== null) m.half_time_away = update.hts_B;
+      if (update.status) m.status = update.status;
+      if (update.period) m.period = update.period;
+      if (update.minute !== undefined && update.minute !== null) m.minute = update.minute;
+      if (update.minute_extra !== undefined && update.minute_extra !== null) m.minute_extra = update.minute_extra;
+
+      // Canlı Skor kartı DOM güncelle
+      const scoreEl = document.getElementById(`live-score-${mid}`);
+      const badgeEl = document.getElementById(`live-badge-${mid}`);
+      const htEl = document.getElementById(`live-ht-${mid}`);
+
+      const s = (m.status || "").toLowerCase();
+      const isLive = s === "playing";
+      const isPlayed = s === "played";
+
+      if (scoreEl) {
+        if (isLive || isPlayed) {
+          const h = m.home_score !== null && m.home_score !== undefined ? m.home_score : 0;
+          const a = m.away_score !== null && m.away_score !== undefined ? m.away_score : 0;
+          scoreEl.innerText = `${h} : ${a}`;
+          if (isLive) scoreEl.classList.add("live-active");
+          else scoreEl.classList.remove("live-active");
+        }
+
+        // Gol animasyonu (yeşil neon parlama) ve Bip Sesi
+        if (goalScored) {
+          const isFav = favoriteMatchIds.has(mid);
+          // Eğer kullanıcı "Favorilerim" sayfasındaysa sadece favori maçlarda ses çal
+          if (currentLiveFilter !== "favorites" || isFav) {
+            playGoalSound();
+          }
+          scoreEl.classList.add("goal-flash");
+          setTimeout(() => {
+            if (scoreEl) scoreEl.classList.remove("goal-flash");
+          }, 8000);
+        }
+      }
+
+      if (badgeEl) {
+        if (isLive) {
+          badgeEl.className = "live-status-badge playing";
+          const p = m.period || "";
+          if (p === "Half Time" || p === "Devre Arası") {
+            badgeEl.innerHTML = `<span class="pulse-dot"></span> İY`;
+          } else {
+            let minStr = m.minute ? `${m.minute}'` : "CANLI";
+            if (m.minute && m.minute_extra) {
+              minStr = `${m.minute}+${m.minute_extra}'`;
+            }
+            badgeEl.innerHTML = `<span class="pulse-dot"></span> ${minStr}`;
+          }
+        } else if (isPlayed) {
+          badgeEl.className = "live-status-badge played";
+          badgeEl.innerText = "MS";
+        } else {
+          badgeEl.className = "live-status-badge fixture";
+          badgeEl.innerText = getMatchLocalTime(m);
+        }
+      }
+      if (htEl && (isLive || isPlayed) && m.half_time_home !== null && m.half_time_home !== undefined) {
+        htEl.innerText = `İY ${m.half_time_home}:${m.half_time_away}`;
+      }
+
+      // Fikstür sekmesinde açık bir maç varsa orayı da anlık güncelle
+      const fixRow = document.getElementById(`match-${mid}`);
+      if (fixRow) {
+        const fixScoreBox = fixRow.querySelector(".match-score-box");
+        if (fixScoreBox && (isLive || isPlayed)) {
+          fixScoreBox.innerText = `${m.home_score !== null ? m.home_score : 0} : ${m.away_score !== null ? m.away_score : 0}`;
+          if (isLive) fixScoreBox.classList.add("live-active");
+          else fixScoreBox.classList.remove("live-active");
+        }
+      }
+
+      updateLiveCounts();
+    }
+
+    // Sahadan Canlı WebSocket Entegrasyonu (Gerçek zamanlı Socket.io v2)
+    function initLiveSocket() {
+      const connDot = document.getElementById("live-conn-dot");
+      const connStatus = document.getElementById("live-conn-status");
+
+      try {
+        if (typeof io !== "undefined") {
+          // Sahadan Nuxt config: socketUrl: "https://socket.mackolikfeeds.com/mksh"
+          const socket = io("https://socket.mackolikfeeds.com/mksh", {
+            path: "/socket.io",
+            transports: ["websocket"],
+            autoConnect: true,
+            reconnection: true,
+            reconnectionDelay: 1000,
+            reconnectionDelayMax: 5000,
+            reconnectionAttempts: 100
+          });
+
+          socket.on("connect", () => {
+            if (connDot) connDot.className = "connection-dot";
+            if (connStatus) connStatus.innerText = "Sahadan Canlı Yayını Bağlandı";
+            socket.emit("join-room", "soccer");
+          });
+
+          socket.on("disconnect", () => {
+            if (connDot) connDot.className = "connection-dot disconnected";
+            if (connStatus) connStatus.innerText = "Canlı Bağlantı Yenileniyor...";
+          });
+
+          socket.on("reconnect", () => {
+            if (connDot) connDot.className = "connection-dot";
+            if (connStatus) connStatus.innerText = "Sahadan Canlı Yayını Bağlandı";
+            socket.emit("join-room", "soccer");
+          });
+
+          socket.on("matches", (data) => {
+            if (!data) return;
+            const content = data.content !== undefined ? data.content : data;
+            const list = Array.isArray(content) ? content : [content];
+            list.forEach(item => applyLiveMatchUpdate(item));
+          });
+        } else {
+          if (connDot) connDot.className = "connection-dot disconnected";
+          if (connStatus) connStatus.innerText = "Socket Kütüphanesi Yüklenemedi";
+        }
+      } catch (err) {
+        console.warn("Socket.io bağlantı hatası:", err);
+      }
+    }
+
+    // İlk tıklamada tarayıcı Web Audio kısıtını aç
+    document.addEventListener("pointerdown", () => {
+      if (audioCtx && audioCtx.state === "suspended") {
+        audioCtx.resume();
+      }
+    }, { once: true });
+
+    window.addEventListener("DOMContentLoaded", initApp);
+  </script>
+</body>
+</html>
