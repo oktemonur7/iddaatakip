@@ -2338,7 +2338,11 @@
 
       if (update.hts_A !== undefined && update.hts_A !== null) m.half_time_home = update.hts_A;
       if (update.hts_B !== undefined && update.hts_B !== null) m.half_time_away = update.hts_B;
-      if (update.status) m.status = update.status;
+      let statusChanged = false;
+      if (update.status && update.status !== m.status) {
+        m.status = update.status;
+        statusChanged = true;
+      }
       if (update.period) m.period = update.period;
       if (update.minute !== undefined && update.minute !== null) m.minute = update.minute;
       if (update.minute_extra !== undefined && update.minute_extra !== null) m.minute_extra = update.minute_extra;
@@ -2412,6 +2416,34 @@
       }
 
       updateLiveCounts();
+      return statusChanged;
+    }
+
+    // Sahadan HTTP Canlı Senkronizasyon (WebSocket kopsa bile kesintisiz canlı skor)
+    async function pollLiveScoresFromServer() {
+      const serverBase = getPushServerUrl() || window.location.origin;
+      const endpoint = serverBase.replace(/\/+$/, "") + "/api/live-sync";
+      try {
+        const res = await fetch(endpoint, { cache: "no-store" });
+        if (!res.ok) return;
+        const data = await res.json();
+        if (data && Array.isArray(data.matches)) {
+          let anyStatusChanged = false;
+          data.matches.forEach(item => {
+            const changed = applyLiveMatchUpdate(item);
+            if (changed) anyStatusChanged = true;
+          });
+          if (anyStatusChanged && (currentLiveFilter === "live" || currentLiveFilter === "played" || currentLiveFilter === "fixture")) {
+            renderLiveScores();
+          }
+          const connDot = document.getElementById("live-conn-dot");
+          const connStatus = document.getElementById("live-conn-status");
+          if (connDot) connDot.className = "connection-dot";
+          if (connStatus) connStatus.innerText = "Canlı Skor Akışı Aktif (Sahadan Sync)";
+        }
+      } catch (err) {
+        // Sessiz fallback
+      }
     }
 
     // Sahadan Canlı WebSocket Entegrasyonu (Gerçek zamanlı Socket.io v2)
@@ -2453,7 +2485,14 @@
             if (!data) return;
             const content = data.content !== undefined ? data.content : data;
             const list = Array.isArray(content) ? content : [content];
-            list.forEach(item => applyLiveMatchUpdate(item));
+            let anyStatusChanged = false;
+            list.forEach(item => {
+              const changed = applyLiveMatchUpdate(item);
+              if (changed) anyStatusChanged = true;
+            });
+            if (anyStatusChanged && (currentLiveFilter === "live" || currentLiveFilter === "played" || currentLiveFilter === "fixture")) {
+              renderLiveScores();
+            }
           });
         } else {
           if (connDot) connDot.className = "connection-dot disconnected";
@@ -2462,6 +2501,10 @@
       } catch (err) {
         console.warn("Socket.io bağlantı hatası:", err);
       }
+
+      // Her 5 saniyede bir HTTP Sync sorgusu yap
+      pollLiveScoresFromServer();
+      setInterval(pollLiveScoresFromServer, 5000);
     }
 
     // İlk tıklamada tarayıcı Web Audio kısıtını aç

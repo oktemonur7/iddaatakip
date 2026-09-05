@@ -5,6 +5,7 @@ import os
 import sys
 import threading
 import time
+import datetime
 import urllib.request
 import socketio
 from pywebpush import webpush, WebPushException
@@ -168,7 +169,7 @@ def send_push_to_all(payload):
 # Match state tracking
 live_matches_state = {}
 
-def process_match_update(update):
+def process_match_update(update, is_initial=False):
     if not update or not isinstance(update, dict):
         return
 
@@ -218,6 +219,28 @@ def process_match_update(update):
     # 1. GOL KONTROLÜ
     new_home = update.get("fts_A")
     new_away = update.get("fts_B")
+
+    new_status = str(update.get("status") or "").strip()
+    new_period = str(update.get("period") or "").strip()
+    is_ht = new_period in ("Half Time", "Devre Arası", "HT") or new_status in ("Half Time", "Devre Arası", "HT")
+    is_ft = new_status.lower() in ("played", "ms", "ft", "finished", "bitti") or new_period.lower() in ("played", "ms", "ft", "finished")
+
+    if is_initial:
+        if new_home is not None:
+            try: m["home_score"] = int(new_home)
+            except ValueError: pass
+        if new_away is not None:
+            try: m["away_score"] = int(new_away)
+            except ValueError: pass
+        if update.get("hts_A") is not None: m["ht_home"] = update["hts_A"]
+        if update.get("hts_B") is not None: m["ht_away"] = update["hts_B"]
+        m["status"] = new_status
+        m["period"] = new_period
+        if is_ht or is_ft:
+            m["notified_ht"] = True
+        if is_ft:
+            m["notified_ft"] = True
+        return
 
     goal_scored = False
     if new_home is not None:
@@ -329,7 +352,100 @@ def process_match_update(update):
             except ValueError:
                 pass
 
-# Live WebSocket Listener
+# SAHADAN REAL-TIME HTTP SYNC ENGINE
+latest_matches_summary = []
+is_initial_sync = True
+
+def sahadan_http_sync_worker():
+    global is_initial_sync, latest_matches_summary
+    log_event("🔄 Sahadan Canlı HTTP Senkronizasyon Servisi Başlatıldı.")
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Referer": "https://www.sahadan.com/canli-sonuclar",
+        "Accept": "application/json"
+    }
+    tz_tr = datetime.timezone(datetime.timedelta(hours=3))
+    last_full_fetch = 0
+
+    while True:
+        now = time.time()
+
+        # 1. Her 30 saniyede bir tüm maçların durumunu çek (soccer-live-e)
+        if now - last_full_fetch >= 30:
+            try:
+                today = datetime.datetime.now(tz_tr).strftime("%Y-%m-%d")
+                live_url = f"https://www.sahadan.com/api/index/soccer-live-e?a=bs&e=sams&add_playing=0&extended_period=1&date={today}&application=mackolik.com&language=tr"
+                req = urllib.request.Request(live_url, headers=headers)
+                with urllib.request.urlopen(req, timeout=10) as res:
+                    raw = json.loads(res.read().decode("utf-8"))
+                    areas = raw.get("data", {}).get("areas", [])
+                    new_summary = []
+                    for a in areas:
+                        for c in a.get("competitions", []):
+                            for m in c.get("matches", []):
+                                mid = m.get("id")
+                                uuid = m.get("uuid")
+                                t_a = m.get("team_A", {}).get("name", "")
+                                t_b = m.get("team_B", {}).get("name", "")
+                                if mid and t_a and t_b:
+                                    match_names_map[str(mid)] = (t_a, t_b)
+                                if uuid and t_a and t_b:
+                                    match_names_map[str(uuid)] = (t_a, t_b)
+
+                                match_dict = {
+                                    "id": mid,
+                                    "match_id": mid,
+                                    "uuid": uuid,
+                                    "match_uuid": uuid,
+                                    "status": m.get("status"),
+                                    "period": m.get("period"),
+                                    "minute": m.get("minute"),
+                                    "fts_A": m.get("fts_A"),
+                                    "fts_B": m.get("fts_B"),
+                                    "hts_A": m.get("hts_A"),
+                                    "hts_B": m.get("hts_B"),
+                                    "home_team_name": t_a,
+                                    "away_team_name": t_b
+                                }
+                                new_summary.append(match_dict)
+                                process_match_update(match_dict, is_initial=is_initial_sync)
+
+                    latest_matches_summary = new_summary
+                    last_full_fetch = now
+                    if is_initial_sync:
+                        is_initial_sync = False
+                        live_cnt = len([x for x in new_summary if x.get("status") == "Playing"])
+                        played_cnt = len([x for x in new_summary if x.get("status") == "Played"])
+                        log_event(f"✓ Sahadan canlı maç tablosu yüklendi: Toplam {len(new_summary)} maç (Canlı: {live_cnt}, Biten: {played_cnt})")
+            except Exception as e:
+                log_event(f"Sahadan full sync hatası: {e}")
+
+        # 2. Her 3 saniyede bir anlık olayları çek (soccer-sync-data)
+        if not is_initial_sync:
+            try:
+                u = int(now / 2)
+                sync_url = f"https://www.sahadan.com/api/index/soccer-sync-data?a=bs&e=sces&u={u}"
+                req = urllib.request.Request(sync_url, headers=headers)
+                with urllib.request.urlopen(req, timeout=5) as res:
+                    changes = json.loads(res.read().decode("utf-8"))
+                    if changes and isinstance(changes, list):
+                        for item in changes:
+                            mid = str(item.get("match_id") or item.get("id") or item.get("uuid") or "")
+                            process_match_update(item, is_initial=False)
+                            for existing in latest_matches_summary:
+                                if str(existing.get("id")) == mid or str(existing.get("uuid")) == mid:
+                                    if item.get("fts_A") is not None: existing["fts_A"] = item["fts_A"]
+                                    if item.get("fts_B") is not None: existing["fts_B"] = item["fts_B"]
+                                    if item.get("status"): existing["status"] = item["status"]
+                                    if item.get("period"): existing["period"] = item["period"]
+                                    if item.get("minute") is not None: existing["minute"] = item["minute"]
+                                    break
+            except Exception:
+                pass
+
+        time.sleep(3)
+
+# Live WebSocket Listener (İkincil hızlı kanal)
 def start_socket_listener():
     sio = socketio.Client(reconnection=True, reconnection_delay=2, reconnection_delay_max=10)
 
@@ -349,13 +465,13 @@ def start_socket_listener():
         content = data.get("content") if isinstance(data, dict) and "content" in data else data
         items = content if isinstance(content, list) else [content]
         for item in items:
-            process_match_update(item)
+            process_match_update(item, is_initial=False)
 
     while True:
         try:
             sio.connect("https://socket.mackolikfeeds.com/mksh", socketio_path="/socket.io", transports=["websocket"], wait_timeout=10)
             sio.wait()
-        except Exception as e:
+        except Exception:
             time.sleep(5)
 
 class RequestHandler(http.server.SimpleHTTPRequestHandler):
@@ -370,6 +486,18 @@ class RequestHandler(http.server.SimpleHTTPRequestHandler):
         self.end_headers()
 
     def do_GET(self):
+        if self.path.startswith("/api/live-sync") or self.path.startswith("/api/live-matches"):
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Cache-Control", "no-cache, no-store, must-revalidate")
+            self.end_headers()
+            self.wfile.write(json.dumps({
+                "status": "ok",
+                "count": len(latest_matches_summary),
+                "matches": latest_matches_summary
+            }, ensure_ascii=False).encode("utf-8"))
+            return
+
         if self.path == "/api/vapid-key":
             self.send_response(200)
             self.send_header("Content-Type", "application/json")
@@ -398,11 +526,16 @@ class RequestHandler(http.server.SimpleHTTPRequestHandler):
                     "favorites_count": len(s.get("favorites", [])),
                     "favorites": s.get("favorites", [])[:10]
                 })
+            live_cnt = len([x for x in latest_matches_summary if x.get("status") == "Playing"])
+            played_cnt = len([x for x in latest_matches_summary if x.get("status") == "Played"])
             self.send_response(200)
             self.send_header("Content-Type", "application/json")
             self.end_headers()
             self.wfile.write(json.dumps({
                 "subscribers_count": len(subs),
+                "sync_total_matches": len(latest_matches_summary),
+                "sync_live_matches": live_cnt,
+                "sync_played_matches": played_cnt,
                 "subscribers": safe_subs,
                 "recent_logs": last_push_logs
             }, indent=2, ensure_ascii=False).encode("utf-8"))
@@ -497,6 +630,10 @@ def keep_alive_ping():
 if __name__ == "__main__":
     os.chdir(os.path.dirname(os.path.abspath(__file__)))
     socketserver.TCPServer.allow_reuse_address = True
+
+    # Start Sahadan real-time HTTP sync thread
+    http_sync_thread = threading.Thread(target=sahadan_http_sync_worker, daemon=True)
+    http_sync_thread.start()
 
     # Start live socket listener thread
     sock_thread = threading.Thread(target=start_socket_listener, daemon=True)
