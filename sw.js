@@ -1,4 +1,4 @@
-const CACHE = "iddaatakip-v14";
+const CACHE = "iddaatakip-v15";
 const OFFLINE_ASSETS = [
   "./",
   "./index.html",
