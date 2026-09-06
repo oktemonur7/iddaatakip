@@ -4,6 +4,10 @@ import re
 import os
 import sys
 import time
+try:
+    import requests
+except ImportError:
+    requests = None
 
 LEAGUES = [
     {
@@ -592,7 +596,85 @@ def match_odds(tA, tB, clean_dict):
         okA, okB = ok.split("__")
         if (nA in okA or okA in nA) and (nB in okB or okB in nB):
             return ov
-    return None
+def fetch_tv_broadcasts():
+    print("Sahadan.com TV Programı (Canlı Yayın Akışı) taranıyor...")
+    tv_map = {}
+    try:
+        url = "https://www.sahadan.com/tv-programi"
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            "Accept-Language": "tr-TR,tr;q=0.9",
+            "Cache-Control": "no-cache"
+        }
+        html_text = ""
+        try:
+            req = urllib.request.Request(url, headers=headers)
+            with urllib.request.urlopen(req, timeout=12) as response:
+                html_text = response.read().decode("utf-8")
+        except:
+            if requests:
+                resp = requests.get(url, headers=headers, timeout=12)
+                if resp.status_code == 200:
+                    html_text = resp.text
+        if html_text:
+            scripts = re.findall(r'<script[^>]*>(.*?)</script>', html_text, re.DOTALL)
+            for s in scripts:
+                s_strip = s.strip()
+                if s_strip.startswith('[["ShallowReactive"') and "tv-broadcasts" in s_strip:
+                    data = json.loads(s_strip)
+                    memo = {}
+                    def deep_resolve(val, depth=0):
+                        if depth > 40: return None
+                        if isinstance(val, int):
+                            if 0 <= val < len(data):
+                                if val in memo: return memo[val]
+                                raw = data[val]
+                                if isinstance(raw, list) and len(raw) == 2 and raw[0] in ('ShallowReactive', 'Reactive', 'Set', 'Map'):
+                                    res = deep_resolve(raw[1], depth + 1)
+                                    memo[val] = res
+                                    return res
+                                if isinstance(raw, dict):
+                                    res = {k: deep_resolve(v, depth + 1) for k, v in raw.items()}
+                                    memo[val] = res
+                                    return res
+                                if isinstance(raw, list):
+                                    res = [deep_resolve(item, depth + 1) for item in raw]
+                                    memo[val] = res
+                                    return res
+                                return raw
+                        elif isinstance(val, dict):
+                            return {k: deep_resolve(v, depth + 1) for k, v in val.items()}
+                        elif isinstance(val, list):
+                            return [deep_resolve(v, depth + 1) for v in val]
+                        return val
+
+                    resolved = deep_resolve(2)
+                    broadcasts = resolved.get("tv-broadcasts", {}).get("data", {}).get("broadcasts", [])
+                    for b in broadcasts:
+                        chs = [c.get("name") for c in (b.get("channels") or []) if c.get("name")]
+                        if not chs:
+                            continue
+                        m = b.get("match") or {}
+                        mid = m.get("id")
+                        muuid = m.get("uuid")
+                        mname = m.get("name") or b.get("name") or ""
+
+                        if mid:
+                            tv_map[mid] = chs
+                            tv_map[str(mid)] = chs
+                        if muuid:
+                            tv_map[muuid] = chs
+                        if " - " in mname:
+                            parts = mname.split(" - ")
+                            h = norm_team_name(parts[0].strip())
+                            a = norm_team_name(parts[1].strip())
+                            if h and a:
+                                tv_map[f"{h}___{a}"] = chs
+                    break
+        print(f" ✓ Sahadan TV Programından {len(tv_map)} anahtar ile yayın kanalları toplandı.")
+    except Exception as e:
+        print(f" ! TV Programı taranırken hata: {e}")
+    return tv_map
 
 def build_desktop_html():
     print(f"Sahadan.com üzerinden {len(LEAGUES)} ligin verileri taranıyor...")
@@ -649,6 +731,55 @@ def build_desktop_html():
             o = match_odds(tm["home_team"], tm["away_team"], clean_odds_dict)
             if o:
                 tm["odds"] = o
+
+    # TV Yayın Akışı (Hangi kanal veriyor?)
+    tv_map = fetch_tv_broadcasts()
+    if tv_map:
+        matched_tv_live = 0
+        if today_live_matches:
+            for tm in today_live_matches:
+                mid = tm.get("match_id")
+                muuid = tm.get("uuid") or tm.get("match_uuid")
+                h_norm = norm_team_name(tm.get("home_team", ""))
+                a_norm = norm_team_name(tm.get("away_team", ""))
+                pair_key = f"{h_norm}___{a_norm}"
+
+                chs = None
+                if mid and mid in tv_map:
+                    chs = tv_map[mid]
+                elif muuid and muuid in tv_map:
+                    chs = tv_map[muuid]
+                elif pair_key in tv_map:
+                    chs = tv_map[pair_key]
+
+                if chs:
+                    tm["tv_channels"] = chs
+                    matched_tv_live += 1
+        print(f" ✓ Toplam {matched_tv_live} canlı maça TV yayın kanalları eşleştirildi.")
+
+        # Fikstür maçlarına da TV kanallarını bağla
+        matched_tv_fix = 0
+        for lid, ldata in cached_data.items():
+            for w in ldata.get("weeks", []):
+                for m in w.get("matches", []):
+                    mid = m.get("id")
+                    muuid = m.get("uuid")
+                    h_norm = norm_team_name(m.get("home_team", {}).get("name", ""))
+                    a_norm = norm_team_name(m.get("away_team", {}).get("name", ""))
+                    pair_key = f"{h_norm}___{a_norm}"
+
+                    chs = None
+                    if mid and mid in tv_map:
+                        chs = tv_map[mid]
+                    elif muuid and muuid in tv_map:
+                        chs = tv_map[muuid]
+                    elif pair_key in tv_map:
+                        chs = tv_map[pair_key]
+
+                    if chs:
+                        m["tv_channels"] = chs
+                        matched_tv_fix += 1
+        print(f" ✓ Fikstür maçlarından toplam {matched_tv_fix} maça TV yayın kanalları eşleştirildi.")
 
     # Cache yaz
     with open(CACHE_FILE, "w", encoding="utf-8") as f:

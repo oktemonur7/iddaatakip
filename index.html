@@ -535,6 +535,37 @@
       transform: translateX(-50%) translateY(0);
     }
 
+    .odds-tv-row {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      width: 100%;
+      padding: 1px 0;
+      white-space: nowrap;
+    }
+
+    .odds-tv-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 3px;
+      background: rgba(56, 189, 248, 0.16);
+      border: 1px solid rgba(56, 189, 248, 0.38);
+      color: #38bdf8;
+      padding: 1px 6px;
+      border-radius: 4px;
+      font-size: 0.68rem;
+      font-weight: 800;
+      letter-spacing: 0.3px;
+    }
+
+    .odds-tv-channel {
+      color: #f8fafc;
+      font-size: 0.74rem;
+      font-weight: 700;
+      letter-spacing: 0.2px;
+    }
+
     .odds-row {
       display: flex;
       align-items: center;
@@ -547,7 +578,7 @@
       width: 100%;
       height: 1px;
       background: rgba(255, 255, 255, 0.1);
-      margin: 1px 0;
+      margin: 2px 0;
     }
 
     .odds-item {
@@ -820,7 +851,7 @@
       backdrop-filter: blur(16px);
       border: 1px solid var(--card-border);
       border-radius: 12px;
-      overflow: hidden;
+      overflow: visible;
       box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35);
     }
 
@@ -895,7 +926,19 @@
       border-color: rgba(250, 204, 21, 0.3);
     }
 
-    .live-match-item:hover .odds-tooltip {
+    .live-badge-wrapper {
+      position: relative;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+    }
+
+    .live-badge-wrapper:hover {
+      z-index: 100;
+    }
+
+    .live-badge-wrapper:hover .odds-tooltip {
       visibility: visible;
       opacity: 1;
       transform: translateX(-50%) translateY(0);
@@ -2041,7 +2084,19 @@
           statusBadgeHtml = `<span class="match-status-live">● CANLI</span>`;
         }
 
-        let oddsHtml = "";
+        // TV Kanalı ve Oranlar Tooltip
+        let tooltipRows = [];
+        const chs = m.tv_channels || m.channels || [];
+        if (chs && chs.length > 0) {
+          const chListStr = Array.isArray(chs) ? chs.join(", ") : String(chs);
+          tooltipRows.push(`
+            <div class="odds-tv-row">
+              <span class="odds-tv-badge">📺 YAYIN</span>
+              <span class="odds-tv-channel">${chListStr}</span>
+            </div>
+          `);
+        }
+
         if (m.odds && m.odds.ms1) {
           let rows = [];
           
@@ -2076,9 +2131,19 @@
             `);
           }
 
+          if (rows.length > 0) {
+            if (tooltipRows.length > 0) {
+              tooltipRows.push(`<div class="odds-divider-h"></div>`);
+            }
+            tooltipRows.push(...rows);
+          }
+        }
+
+        let oddsHtml = "";
+        if (tooltipRows.length > 0) {
           oddsHtml = `
             <div class="odds-tooltip">
-              ${rows.join("")}
+              ${tooltipRows.join("")}
             </div>
           `;
         }
@@ -2311,8 +2376,19 @@
         scoreDisplay = "- : -";
       }
 
-      // Oranlar Tooltip (Varsa)
-      let oddsHtml = "";
+      // TV Kanalı ve Oranlar Tooltip (Varsa)
+      let tooltipRows = [];
+      const chs = m.tv_channels || m.channels || [];
+      if (chs && chs.length > 0) {
+        const chListStr = Array.isArray(chs) ? chs.join(", ") : String(chs);
+        tooltipRows.push(`
+          <div class="odds-tv-row">
+            <span class="odds-tv-badge">📺 YAYIN</span>
+            <span class="odds-tv-channel">${chListStr}</span>
+          </div>
+        `);
+      }
+
       if (m.odds) {
         let rows = [];
         if (m.odds.ms1 && m.odds.ms0 && m.odds.ms2) {
@@ -2342,7 +2418,18 @@
             </div>
           `);
         }
-        oddsHtml = `<div class="odds-tooltip">${rows.join("")}</div>`;
+
+        if (rows.length > 0) {
+          if (tooltipRows.length > 0) {
+            tooltipRows.push(`<div class="odds-divider-h"></div>`);
+          }
+          tooltipRows.push(...rows);
+        }
+      }
+
+      let oddsHtml = "";
+      if (tooltipRows.length > 0) {
+        oddsHtml = `<div class="odds-tooltip">${tooltipRows.join("")}</div>`;
       }
 
       const favIcon = isFav ? "★" : "☆";
@@ -2350,8 +2437,6 @@
 
       return `
         <div class="live-match-item ${isFav ? 'is-fav' : ''}" id="live-card-${m.match_id}">
-          ${oddsHtml}
-          
           <!-- Favori Butonu -->
           <button class="live-fav-btn ${favClass}" 
                   onclick="toggleFavoriteMatch('${m.match_id}', event)" 
@@ -2359,8 +2444,11 @@
             ${favIcon}
           </button>
 
-          <!-- Durum Rozeti: Başlamadıysa Saat, Başladıysa Dakika, Bittiyse MS -->
-          <span class="live-status-badge ${badgeClass}" id="live-badge-${m.match_id}">${badgeHtml}</span>
+          <!-- Durum Rozeti (Saat / Dakika / MS) ve Tooltip Alanı -->
+          <div class="live-badge-wrapper" title="${(chs && chs.length) || m.odds ? 'Yayın & Oranlar' : ''}">
+            <span class="live-status-badge ${badgeClass}" id="live-badge-${m.match_id}">${badgeHtml}</span>
+            ${oddsHtml}
+          </div>
 
           <!-- Takımlar ve Skor -->
           <div class="live-match-main">
