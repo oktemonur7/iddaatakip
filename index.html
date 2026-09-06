@@ -82,8 +82,9 @@
     header {
       display: flex;
       align-items: center;
+      justify-content: space-between;
       gap: 16px;
-      padding: 14px 22px;
+      padding: 12px 20px;
       background: var(--card-bg);
       backdrop-filter: blur(20px);
       -webkit-backdrop-filter: blur(20px);
@@ -94,48 +95,11 @@
       width: 100%;
     }
 
-    .header-brand {
-      display: flex;
-      align-items: center;
-      gap: 14px;
-      flex-shrink: 0;
-    }
-
-    .header-title {
-      font-size: 1.25rem;
-      font-weight: 800;
-      letter-spacing: -0.01em;
-      color: #fff;
+    .header-nav-row {
       display: flex;
       align-items: center;
       gap: 10px;
-      text-shadow: 0 0 12px rgba(255, 255, 255, 0.3);
-      white-space: nowrap;
-    }
-
-    .live-indicator {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      font-size: 0.72rem;
-      font-weight: 800;
-      color: var(--pl-neon);
-      background: rgba(0, 255, 133, 0.12);
-      border: 1px solid rgba(0, 255, 133, 0.45);
-      box-shadow: 0 0 12px rgba(0, 255, 133, 0.25);
-      padding: 3px 9px;
-      border-radius: 20px;
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
-    }
-
-    .live-dot {
-      width: 7px;
-      height: 7px;
-      background-color: var(--pl-neon);
-      border-radius: 50%;
-      box-shadow: 0 0 10px var(--pl-neon);
-      animation: neon-pulse 1.8s infinite;
+      flex-shrink: 0;
     }
 
     @keyframes neon-pulse {
@@ -712,7 +676,7 @@
       padding: 4px;
       border-radius: 12px;
       border: 1px solid rgba(255, 255, 255, 0.08);
-      margin-left: auto;
+      margin-left: 0;
       flex-shrink: 0;
     }
 
@@ -729,6 +693,7 @@
       font-size: 0.86rem;
       font-weight: 700;
       cursor: pointer;
+      white-space: nowrap;
       transition: all 0.2s ease;
     }
 
@@ -893,14 +858,14 @@
       grid-template-columns: 1fr 1fr;
       column-gap: 22px;
       row-gap: 8px;
-      padding: 10px 14px;
+      padding: 10px 14px 10px 6px;
     }
 
     @media (max-width: 900px) {
       .live-columns-row {
         grid-template-columns: 1fr;
         column-gap: 0;
-        padding: 8px 10px;
+        padding: 8px 10px 8px 4px;
       }
     }
 
@@ -1220,23 +1185,23 @@
       header {
         flex-direction: column;
         align-items: stretch;
-        gap: 12px;
-        padding: 12px 14px;
+        gap: 10px;
+        padding: 10px 12px;
         border-radius: 14px;
       }
 
-      .header-brand {
+      .header-nav-row {
         order: 1;
         display: flex;
         align-items: center;
-        justify-content: space-between;
+        gap: 8px;
         width: 100%;
       }
 
       .nav-tabs {
-        order: 2;
+        flex: 1;
         margin-left: 0;
-        width: 100%;
+        width: auto;
         display: flex;
         box-sizing: border-box;
       }
@@ -1247,8 +1212,15 @@
         padding: 8px 10px;
       }
 
+      .notif-btn {
+        width: 36px;
+        height: 36px;
+        margin: 0;
+        flex-shrink: 0;
+      }
+
       .league-select-wrapper {
-        order: 3;
+        order: 2;
         width: 100%;
         max-width: 100%;
         box-sizing: border-box;
@@ -1271,57 +1243,25 @@
       }
 
       header {
-        padding: 10px 12px;
-        gap: 10px;
+        padding: 8px 10px;
+        gap: 8px;
         border-radius: 12px;
       }
 
-      .header-title {
-        font-size: 1.1rem;
+      .header-nav-row {
         gap: 6px;
-      }
-
-      .live-indicator {
-        font-size: 0.68rem;
-        padding: 2px 7px;
-      }
-
-      .header-brand {
-        overflow: hidden;
-      }
-
-      .header-brand-right {
-        gap: 6px;
-        margin-left: auto;
-        flex-shrink: 0;
-        padding-right: 2px;
-      }
-
-      .header-meta {
-        font-size: 0.72rem;
-        max-width: 85px;
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
       }
 
       .notif-btn {
-        width: 32px;
-        height: 32px;
+        width: 34px;
+        height: 34px;
         border-radius: 8px;
-        flex-shrink: 0;
-        margin-right: 4px;
+        margin: 0;
       }
 
       .nav-tab-btn {
         font-size: 0.8rem;
         padding: 7px 6px;
-        gap: 6px;
-      }
-
-      .nav-tab-btn svg {
-        width: 14px;
-        height: 14px;
       }
 
       .league-select-wrapper {
@@ -1358,7 +1298,7 @@
       cursor: pointer;
       transition: all 0.2s ease;
       flex-shrink: 0;
-      margin-right: 3px;
+      margin: 0;
     }
 
     .notif-btn:hover {
@@ -1577,23 +1517,18 @@
   <div class="app-container">
     <!-- TOP HEADER -->
     <header>
-      <div class="header-brand">
-        <div class="header-title">
-          Futbol Ligleri
-          <span class="live-indicator">
-            <span class="live-dot"></span> Canlı
-          </span>
+      <div class="header-nav-row">
+        <div class="nav-tabs">
+          <button class="nav-tab-btn active" id="tab-btn-leagues" onclick="switchMainView('leagues')">Ligler & Fikstür</button>
+          <button class="nav-tab-btn" id="tab-btn-livescores" onclick="switchMainView('livescores')">Canlı Skorlar <span class="live-count-badge" id="live-tab-badge" style="display:none;">0</span></button>
         </div>
-        <div class="header-brand-right">
-          <div class="header-meta" id="sub-title" style="display: none;"></div>
-          <button class="notif-btn" id="notif-toggle-btn" onclick="openNotifModal()" title="Gol Bildirimleri">
-            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
-              <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
-              <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
-            </svg>
-            <span class="notif-dot" id="notif-status-dot"></span>
-          </button>
-        </div>
+        <button class="notif-btn" id="notif-toggle-btn" onclick="openNotifModal()" title="Gol Bildirimleri">
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+            <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+            <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+          </svg>
+          <span class="notif-dot" id="notif-status-dot"></span>
+        </button>
       </div>
 
       <!-- LİG SEÇİM LİSTBOX (Sadece Ligler & Fikstür görünümünde) -->
@@ -1604,18 +1539,7 @@
         </select>
       </div>
 
-      <!-- MODÜL SEKMELERİ (LİGLER & FİKSTÜR / CANLI SKORLAR) -->
-      <div class="nav-tabs">
-        <button class="nav-tab-btn active" id="tab-btn-leagues" onclick="switchMainView('leagues')">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M18 20V10M12 20V4M6 20v-6"/></svg>
-          Ligler & Fikstür
-        </button>
-        <button class="nav-tab-btn" id="tab-btn-livescores" onclick="switchMainView('livescores')">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
-          Canlı Skorlar
-          <span class="live-count-badge" id="live-tab-badge" style="display:none;">0</span>
-        </button>
-      </div>
+      <div class="header-meta" id="sub-title" style="display: none;"></div>
     </header>
 
     <div id="error-container"></div>
@@ -1676,8 +1600,8 @@
       <!-- FİLTRELEME & CANLI BAĞLANTI BİLGİSİ -->
       <div class="live-filter-bar">
         <div class="live-filter-group">
-          <button class="filter-btn active" id="filter-all" onclick="filterLiveStatus('all')">Tüm Maçlar (<span id="count-all">0</span>)</button>
-          <button class="filter-btn" id="filter-live" onclick="filterLiveStatus('live')">⚡ Canlı (<span id="count-live">0</span>)</button>
+          <button class="filter-btn active" id="filter-all" onclick="filterLiveStatus('all')">Hepsi (<span id="count-all">0</span>)</button>
+          <button class="filter-btn" id="filter-live" onclick="filterLiveStatus('live')">Canlı (<span id="count-live">0</span>)</button>
           <button class="filter-btn" id="filter-favorites" onclick="filterLiveStatus('favorites')">★ Favorilerim (<span id="count-fav">0</span>)</button>
         </div>
 
@@ -2708,7 +2632,7 @@
 
       if (!filtered.length) {
         if (currentLiveFilter === "favorites") {
-          container.innerHTML = "<div class='loading-state'>⭐ Henüz favori maç eklemediniz.<br><span style='font-size:0.82rem; color:#94a3b8; display:inline-block; margin-top:6px;'>Tüm Maçlar sekmesinden takip etmek istediğiniz maçların yanındaki ★ simgesine dokunun.<br><span style='font-size:0.75rem; color:#64748b; margin-top:4px; display:inline-block;'>Favoriler listeniz her sabah 07:00'de otomatik sıfırlanır.</span></span></div>";
+          container.innerHTML = "<div class='loading-state'>⭐ Henüz favori maç eklemediniz.<br><span style='font-size:0.82rem; color:#94a3b8; display:inline-block; margin-top:6px;'>Hepsi sekmesinden takip etmek istediğiniz maçların yanındaki ★ simgesine dokunun.<br><span style='font-size:0.75rem; color:#64748b; margin-top:4px; display:inline-block;'>Favoriler listeniz her sabah 07:00'de otomatik sıfırlanır.</span></span></div>";
         } else {
           container.innerHTML = "<div class='loading-state'>Seçilen kriterde maç bulunamadı.</div>";
         }
