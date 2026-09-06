@@ -568,10 +568,11 @@
     }
 
     .odds-tv-channel {
-      color: #f8fafc;
-      font-size: 0.74rem;
-      font-weight: 700;
+      color: #38bdf8;
+      font-size: 0.78rem;
+      font-weight: 800;
       letter-spacing: 0.2px;
+      text-shadow: 0 0 8px rgba(56, 189, 248, 0.4);
     }
 
     .odds-row {
@@ -1677,8 +1678,6 @@
         <div class="live-filter-group">
           <button class="filter-btn active" id="filter-all" onclick="filterLiveStatus('all')">Tüm Maçlar (<span id="count-all">0</span>)</button>
           <button class="filter-btn" id="filter-live" onclick="filterLiveStatus('live')">⚡ Canlı (<span id="count-live">0</span>)</button>
-          <button class="filter-btn" id="filter-played" onclick="filterLiveStatus('played')">Bitenler (<span id="count-played">0</span>)</button>
-          <button class="filter-btn" id="filter-fixture" onclick="filterLiveStatus('fixture')">Başlamamış (<span id="count-fixture">0</span>)</button>
           <button class="filter-btn" id="filter-favorites" onclick="filterLiveStatus('favorites')">★ Favorilerim (<span id="count-fav">0</span>)</button>
         </div>
 
@@ -2211,7 +2210,6 @@
           const chListStr = Array.isArray(chs) ? chs.join(", ") : String(chs);
           tooltipRows.push(`
             <div class="odds-tv-row">
-              <span class="odds-tv-badge">📺 YAYIN</span>
               <span class="odds-tv-channel">${chListStr}</span>
             </div>
           `);
@@ -2509,7 +2507,6 @@
         const chListStr = Array.isArray(chs) ? chs.join(", ") : String(chs);
         tooltipRows.push(`
           <div class="odds-tv-row">
-            <span class="odds-tv-badge">📺 YAYIN</span>
             <span class="odds-tv-channel">${chListStr}</span>
           </div>
         `);
@@ -2530,8 +2527,8 @@
           rows.push(`
             <div class="odds-divider-h"></div>
             <div class="odds-row">
-              <div class="odds-item"><span class="odds-lbl">KG Var:</span><span class="odds-val">${m.odds.kg_var}</span></div>
-              <div class="odds-item"><span class="odds-lbl">KG Yok:</span><span class="odds-val">${m.odds.kg_yok}</span></div>
+              <div class="odds-item"><span class="odds-lbl">Var:</span><span class="odds-val">${m.odds.kg_var}</span></div>
+              <div class="odds-item"><span class="odds-lbl">Yok:</span><span class="odds-val">${m.odds.kg_yok}</span></div>
             </div>
           `);
         }

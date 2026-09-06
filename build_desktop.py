@@ -492,13 +492,18 @@ def fetch_iddaa_odds(all_target_teams=None):
                                                 if isinstance(line_d, dict):
                                                     name = resolve(line_d.get("n"))
                                                     val = resolve(line_d.get("v"))
-                                                    if mi == 1:
-                                                        if name == "1": odds["ms1"] = str(val)
-                                                        elif name in ("0", "X", "x"): odds["ms0"] = str(val)
-                                                        elif name == "2": odds["ms2"] = str(val)
-                                                    elif mi == 10:
-                                                        if name == "Alt": odds["alt"] = str(val)
-                                                        elif name == "Üst": odds["ust"] = str(val)
+                                                    if mi in (1, 3):
+                                                        if name == "1" and ("ms1" not in odds or mi == 1):
+                                                            odds["ms1"] = str(val)
+                                                        elif name in ("0", "X", "x") and ("ms0" not in odds or mi == 1):
+                                                            odds["ms0"] = str(val)
+                                                        elif name == "2" and ("ms2" not in odds or mi == 1):
+                                                            odds["ms2"] = str(val)
+                                                    elif mi in (10, 11):
+                                                        if name == "Alt" and ("alt" not in odds or mi == 10):
+                                                            odds["alt"] = str(val)
+                                                        elif name == "Üst" and ("ust" not in odds or mi == 10):
+                                                            odds["ust"] = str(val)
                                                     elif mi == 6:
                                                         if name == "Var": odds["kg_var"] = str(val)
                                                         elif name == "Yok": odds["kg_yok"] = str(val)
@@ -545,18 +550,17 @@ def fetch_iddaa_odds(all_target_teams=None):
                     st = m.get("st")
                     sov = str(m.get("sov") or "")
                     o_dict = {str(o.get("n")): str(o.get("wodd") or o.get("odd")) for o in m.get("o", [])}
-                    if st in (1, 4) and "1" in o_dict and "0" in o_dict and "2" in o_dict:
+                    draw_key = "X" if "X" in o_dict else ("0" if "0" in o_dict else None)
+                    if "1" in o_dict and "2" in o_dict and draw_key:
                         odds["ms1"] = o_dict["1"]
-                        odds["ms0"] = o_dict["0"]
+                        odds["ms0"] = o_dict[draw_key]
                         odds["ms2"] = o_dict["2"]
-                    elif st in (14, 101) and sov == "2.5":
-                        if "Alt" in o_dict and "Üst" in o_dict:
-                            odds["alt"] = o_dict["Alt"]
-                            odds["ust"] = o_dict["Üst"]
-                    elif st in (89, 131):
-                        if "Var" in o_dict and "Yok" in o_dict:
-                            odds["kg_var"] = o_dict["Var"]
-                            odds["kg_yok"] = o_dict["Yok"]
+                    elif "Alt" in o_dict and "Üst" in o_dict and (sov == "2.5" or "alt" not in odds):
+                        odds["alt"] = o_dict["Alt"]
+                        odds["ust"] = o_dict["Üst"]
+                    elif "Var" in o_dict and "Yok" in o_dict:
+                        odds["kg_var"] = o_dict["Var"]
+                        odds["kg_yok"] = o_dict["Yok"]
                 if "ms1" in odds:
                     return hn, an, odds
             except:
