@@ -927,6 +927,12 @@
     .live-match-item:hover {
       background: rgba(255, 255, 255, 0.06);
       border-color: rgba(255, 255, 255, 0.16);
+      z-index: 50;
+    }
+
+    .live-match-item.has-open-tooltip,
+    .live-match-item:has(.tooltip-open) {
+      z-index: 2000 !important;
     }
 
     .live-match-item.is-fav {
@@ -2568,9 +2574,10 @@
 
           <!-- Durum Rozeti (Başladıysa Dakika / Bittiyse MS) -->
           <div class="live-badge-wrapper" 
+               id="live-badge-wrap-${m.match_id}"
                tabindex="0" 
                style="${showBadge ? '' : 'display: none;'}"
-               onclick="toggleLiveBadgeTooltip(this, event)" 
+               onclick="${hasTooltip ? 'toggleLiveBadgeTooltip(this, event)' : ''}" 
                title="${showBadge ? tooltipTitle : ''}">
             <span class="live-status-badge ${badgeClass}" id="live-badge-${m.match_id}">${badgeHtml}</span>
             ${showBadge ? oddsHtml : ''}
@@ -2582,10 +2589,10 @@
             <div class="live-score-display ${scoreClass}" 
                  id="live-score-${m.match_id}"
                  tabindex="0"
-                 onclick="${!showBadge ? 'toggleLiveScoreTooltip(this, event)' : ''}"
-                 title="${!showBadge ? tooltipTitle : ''}">
-              ${scoreDisplay}
-              ${!showBadge ? oddsHtml : ''}
+                 onclick="${hasTooltip ? 'toggleLiveScoreTooltip(this, event)' : ''}"
+                 title="${tooltipTitle}">
+              <span class="live-score-val" id="live-score-val-${m.match_id}">${scoreDisplay}</span>
+              ${oddsHtml}
             </div>
             <div class="live-team away" title="${m.away_team}">${m.away_team}</div>
           </div>
@@ -2602,8 +2609,13 @@
       document.querySelectorAll(".live-badge-wrapper.tooltip-open, .live-score-display.tooltip-open").forEach(el => {
         el.classList.remove("tooltip-open");
       });
+      document.querySelectorAll(".live-match-item.has-open-tooltip").forEach(card => {
+        card.classList.remove("has-open-tooltip");
+      });
       if (!isOpen) {
         wrapper.classList.add("tooltip-open");
+        const card = wrapper.closest(".live-match-item");
+        if (card) card.classList.add("has-open-tooltip");
       }
     }
 
@@ -2616,8 +2628,13 @@
       document.querySelectorAll(".live-badge-wrapper.tooltip-open, .live-score-display.tooltip-open").forEach(el => {
         el.classList.remove("tooltip-open");
       });
+      document.querySelectorAll(".live-match-item.has-open-tooltip").forEach(card => {
+        card.classList.remove("has-open-tooltip");
+      });
       if (!isOpen) {
         scoreEl.classList.add("tooltip-open");
+        const card = scoreEl.closest(".live-match-item");
+        if (card) card.classList.add("has-open-tooltip");
       }
     }
 
@@ -2629,12 +2646,19 @@
       if (wrapper) {
         wrapper.classList.remove("tooltip-open");
       }
+      const card = tooltipEl ? tooltipEl.closest(".live-match-item") : null;
+      if (card) {
+        card.classList.remove("has-open-tooltip");
+      }
     }
 
     document.addEventListener("click", (e) => {
       if (!e.target.closest(".live-badge-wrapper") && !e.target.closest(".live-score-display")) {
         document.querySelectorAll(".live-badge-wrapper.tooltip-open, .live-score-display.tooltip-open").forEach(el => {
           el.classList.remove("tooltip-open");
+        });
+        document.querySelectorAll(".live-match-item.has-open-tooltip").forEach(card => {
+          card.classList.remove("has-open-tooltip");
         });
       }
     });
@@ -2936,16 +2960,20 @@
       const isPlayed = isMatchPlayed(m);
 
       if (scoreEl) {
+        const valEl = document.getElementById(`live-score-val-${mid}`);
         if (isLive || isPlayed) {
           const h = m.home_score !== null && m.home_score !== undefined ? m.home_score : 0;
           const a = m.away_score !== null && m.away_score !== undefined ? m.away_score : 0;
-          scoreEl.innerText = `${h} : ${a}`;
+          if (valEl) valEl.innerText = `${h} : ${a}`;
+          else scoreEl.innerText = `${h} : ${a}`;
           scoreEl.classList.remove("fixture-time");
           if (isLive) scoreEl.classList.add("live-active");
           else scoreEl.classList.remove("live-active");
         } else {
-          scoreEl.innerText = getMatchLocalTime(m);
-          scoreEl.className = "live-score-display fixture-time";
+          if (valEl) valEl.innerText = getMatchLocalTime(m);
+          else scoreEl.innerText = getMatchLocalTime(m);
+          scoreEl.classList.add("fixture-time");
+          scoreEl.classList.remove("live-active");
         }
 
         const isFav = favoriteMatchIds.has(mid);
