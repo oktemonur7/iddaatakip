@@ -129,6 +129,7 @@ LEAGUES = [
 APP_DIR = os.path.dirname(os.path.abspath(__file__))
 CACHE_FILE = os.path.join(APP_DIR, "leagues_cache.json")
 GOALS_CACHE_FILE = os.path.join(APP_DIR, "all_goals_cache.json")
+TV_CACHE_FILE = os.path.join(APP_DIR, "all_tv_cache.json")
 DESKTOP_HTML = "/Users/onur/Desktop/futbol_ligleri.html"
 TEMPLATE_HTML = os.path.join(APP_DIR, "index.html")
 OUTPUT_HTML = os.path.join(APP_DIR, "dist", "index.html")  # GitHub Pages çıktısı
@@ -500,6 +501,38 @@ def fetch_match_goals(home, away, uuid):
     except Exception as e:
         return []
 
+def fetch_match_tv_channels(home, away, uuid):
+    if not uuid:
+        return []
+    slug = f"{to_sahadan_slug(home)}-vs-{to_sahadan_slug(away)}"
+    url = f"https://www.sahadan.com/mac/{slug}/{uuid}"
+    try:
+        req = urllib.request.Request(url, headers={
+            "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            "Accept-Language": "tr-TR,tr;q=0.9",
+            "Cache-Control": "no-cache"
+        })
+        html = urllib.request.urlopen(req, timeout=6).read().decode("utf-8")
+        m = re.search(r'<script[^>]*id=\"__NUXT_DATA__\"[^>]*>(.*?)</script>', html)
+        if not m:
+            return []
+        data = json.loads(m.group(1))
+        channels = []
+        for item in data:
+            if isinstance(item, dict) and "tr" in item:
+                tr_val = item["tr"]
+                items_to_check = tr_val if isinstance(tr_val, list) else (data[tr_val] if isinstance(tr_val, int) and tr_val < len(data) and isinstance(data[tr_val], list) else [])
+                for ch_ptr in items_to_check:
+                    ch_obj = data[ch_ptr] if isinstance(ch_ptr, int) and ch_ptr < len(data) else ch_ptr
+                    if isinstance(ch_obj, dict) and "name" in ch_obj:
+                        n_ptr = ch_obj["name"]
+                        cname = data[n_ptr] if isinstance(n_ptr, int) and n_ptr < len(data) else n_ptr
+                        if cname and isinstance(cname, str) and cname not in channels:
+                            channels.append(cname)
+        return channels
+    except Exception:
+        return []
+
 
 def norm_team_name(s):
     if not s:
@@ -548,7 +581,44 @@ def fetch_iddaa_odds(all_target_teams=None):
         "Referer": "https://www.iddaa.com/"
     }
 
-    # 1. Nesine / İddaa Resmi Full Ön Bülten (Haftalık ve ertesi gün tüm maçları)
+    # 1. iddaa.com Resmi Sportsbook API (1. BİRİNCİL KAYNAK: Resmi bülten & anlık oranlar)
+    try:
+        req_i = urllib.request.Request("https://sportsbookv2.iddaa.com/sportsbook/events?type=1&sportId=1", headers=headers_iddaa)
+        events = json.loads(urllib.request.urlopen(req_i, timeout=12).read().decode("utf-8")).get("data", {}).get("events", [])
+
+        for e in events:
+            if e.get("sid") == 1:
+                hn = e.get("hn", "")
+                an = e.get("an", "")
+                if not hn or not an:
+                    continue
+                odds = {}
+                for m in e.get("m", []):
+                    st = m.get("st")
+                    sov = str(m.get("sov") or "").strip()
+                    o_dict = {str(o.get("n")): str(o.get("odd") or o.get("wodd")) for o in m.get("o", [])}
+                    draw_key = "0" if "0" in o_dict else ("X" if "X" in o_dict else None)
+                    # st == 4 is Maç Sonucu
+                    if st == 4 and "1" in o_dict and "2" in o_dict and draw_key:
+                        odds["ms1"] = o_dict["1"]
+                        odds["ms0"] = o_dict[draw_key]
+                        odds["ms2"] = o_dict["2"]
+                    # st == 14 and sov == "2.5" is 2.5 Alt/Üst
+                    elif st == 14 and sov == "2.5" and "Alt" in o_dict and "Üst" in o_dict:
+                        odds["alt"] = o_dict["Alt"]
+                        odds["ust"] = o_dict["Üst"]
+                    # st == 131 is KG Var/Yok
+                    elif st == 131 and "Var" in o_dict and "Yok" in o_dict:
+                        odds["kg_var"] = o_dict["Var"]
+                        odds["kg_yok"] = o_dict["Yok"]
+                if "ms1" in odds and "ms0" in odds and "ms2" in odds:
+                    all_odds[(hn, an)] = odds
+
+        print(f" ✓ 1. Kaynak (iddaa.com resmi bülteni) senkronizasyonu tamamlandı: {len(all_odds)} maç.")
+    except Exception as e:
+        print(f" ! iddaa.com taranırken hata: {e}")
+
+    # 2. Nesine / İddaa Resmi Full Ön Bülten (Haftalık ve ertesi gün tüm maçları)
     try:
         url_nesine = "https://cdnbulten.nesine.com/api/bulten/getprebultenfull"
         req_n = urllib.request.Request(url_nesine, headers={"User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)"})
@@ -578,12 +648,17 @@ def fetch_iddaa_odds(all_target_teams=None):
                     odds["kg_var"] = oca[1]
                     odds["kg_yok"] = oca[2]
             if "ms1" in odds and "ms0" in odds and "ms2" in odds:
-                all_odds[(hn, an)] = odds
-        print(f" ✓ Nesine resmi bülteninden {len(all_odds)} maçlık güncel/gelecek oran toplandı.")
+                if (hn, an) not in all_odds:
+                    all_odds[(hn, an)] = odds
+                else:
+                    for k, v in odds.items():
+                        if k not in all_odds[(hn, an)]:
+                            all_odds[(hn, an)][k] = v
+        print(f" ✓ 2. Kaynak (Nesine resmi bülteni) eklendi. Toplam havuz: {len(all_odds)} maç.")
     except Exception as e:
         print(f" ! Nesine bülteni okunurken hata: {e}")
 
-    # 2. Sahadan.com Nuxt Programı (Bugün ve bültendeki tüm maçlar)
+    # 3. Sahadan.com Nuxt Programı (Bugün ve bültendeki tüm maçlar)
     try:
         url_s = "https://www.sahadan.com/iddaa-programi"
         req_s = urllib.request.Request(url_s, headers=headers_sahadan)
@@ -650,51 +725,9 @@ def fetch_iddaa_odds(all_target_teams=None):
                             for k, v in odds.items():
                                 if k not in all_odds[(tA, tB)]:
                                     all_odds[(tA, tB)][k] = v
+        print(f" ✓ 3. Kaynak (Sahadan bülteni) tamamlandı. Toplam havuz: {len(all_odds)} maç.")
     except Exception as e:
         print(f" ! Sahadan bülteni okunurken hata: {e}")
-    print(f" ✓ Sahadan & Nesine bültenlerinden toplam {len(all_odds)} maçlık oran toplandı.")
-
-    # 3. iddaa.com Resmi Sportsbook API (Tüm resmi bülten & anlık oranlar)
-    try:
-        req_i = urllib.request.Request("https://sportsbookv2.iddaa.com/sportsbook/events?type=1&sportId=1", headers=headers_iddaa)
-        events = json.loads(urllib.request.urlopen(req_i, timeout=12).read().decode("utf-8")).get("data", {}).get("events", [])
-
-        for e in events:
-            if e.get("sid") == 1:
-                hn = e.get("hn", "")
-                an = e.get("an", "")
-                if not hn or not an:
-                    continue
-                odds = {}
-                for m in e.get("m", []):
-                    st = m.get("st")
-                    sov = str(m.get("sov") or "").strip()
-                    o_dict = {str(o.get("n")): str(o.get("odd") or o.get("wodd")) for o in m.get("o", [])}
-                    draw_key = "0" if "0" in o_dict else ("X" if "X" in o_dict else None)
-                    # st == 4 is Maç Sonucu
-                    if st == 4 and "1" in o_dict and "2" in o_dict and draw_key:
-                        odds["ms1"] = o_dict["1"]
-                        odds["ms0"] = o_dict[draw_key]
-                        odds["ms2"] = o_dict["2"]
-                    # st == 14 and sov == "2.5" is 2.5 Alt/Üst
-                    elif st == 14 and sov == "2.5" and "Alt" in o_dict and "Üst" in o_dict:
-                        odds["alt"] = o_dict["Alt"]
-                        odds["ust"] = o_dict["Üst"]
-                    # st == 131 is KG Var/Yok
-                    elif st == 131 and "Var" in o_dict and "Yok" in o_dict:
-                        odds["kg_var"] = o_dict["Var"]
-                        odds["kg_yok"] = o_dict["Yok"]
-                if "ms1" in odds and "ms0" in odds and "ms2" in odds:
-                    if (hn, an) not in all_odds:
-                        all_odds[(hn, an)] = odds
-                    else:
-                        for k, v in odds.items():
-                            if k not in all_odds[(hn, an)]:
-                                all_odds[(hn, an)][k] = v
-
-        print(f" ✓ iddaa.com senkronizasyonu tamamlandı. Toplam havuz: {len(all_odds)} maç.")
-    except Exception as e:
-        print(f" ! iddaa.com taranırken hata: {e}")
 
     # Build clean lookup dictionary and pre-tokenized index
     clean_dict = {}
@@ -927,6 +960,64 @@ def build_desktop_html():
                     if chs:
                         m["tv_channels"] = chs
                         matched_tv_fix += 1
+
+    # TV önbelleğini yükle (Daha önce taranmış maç yayınları)
+    tv_cache_dict = {}
+    if os.path.exists(TV_CACHE_FILE):
+        try:
+            with open(TV_CACHE_FILE, "r", encoding="utf-8") as tf:
+                tv_cache_dict = json.load(tf)
+        except Exception:
+            tv_cache_dict = {}
+
+    # TV kanalı henüz bulunamamış güncel aktif hafta maçlarını tespit et
+    matches_needing_tv = []
+    for lid, ldata in cached_data.items():
+        curr_idx = ldata.get("current_week_index", 0)
+        weeks = ldata.get("weeks", [])
+        # Aktif hafta ve bir sonraki haftadaki başlanmamış maçları tara
+        for check_idx in [curr_idx, curr_idx + 1]:
+            if 0 <= check_idx < len(weeks):
+                for m in weeks[check_idx].get("matches", []):
+                    if not m.get("tv_channels"):
+                        muuid = m.get("uuid")
+                        if muuid and muuid in tv_cache_dict:
+                            m["tv_channels"] = tv_cache_dict[muuid]
+                        elif muuid:
+                            matches_needing_tv.append(m)
+
+    if matches_needing_tv:
+        print(f"Aktif haftalardaki TV kanalı eksik {len(matches_needing_tv)} maç taranıyor...")
+        def fetch_tv_for_m(m):
+            muuid = m.get("uuid")
+            h = m.get("home_team", {}).get("name", "")
+            a = m.get("away_team", {}).get("name", "")
+            try:
+                chs = fetch_match_tv_channels(h, a, muuid)
+                if chs:
+                    m["tv_channels"] = chs
+                    tv_cache_dict[muuid] = chs
+            except Exception:
+                pass
+        with ThreadPoolExecutor(max_workers=8) as executor:
+            list(executor.map(fetch_tv_for_m, matches_needing_tv))
+        print(" ✓ Fikstür maçları için TV yayın kanalları başarıyla tarandı.")
+
+    # Canlı maçlar listesine de bulunan TV kanallarını bağla
+    if today_live_matches:
+        for tm in today_live_matches:
+            if not tm.get("tv_channels"):
+                muuid = tm.get("uuid") or tm.get("match_uuid")
+                if muuid and muuid in tv_cache_dict:
+                    tm["tv_channels"] = tv_cache_dict[muuid]
+
+    # TV önbelleğini diske kaydet
+    if tv_cache_dict:
+        try:
+            with open(TV_CACHE_FILE, "w", encoding="utf-8") as tf:
+                json.dump(tv_cache_dict, tf, ensure_ascii=False)
+        except Exception:
+            pass
     # Canlı ve tamamlanan maçların gollerini pre-fetch et (Hızlı açılması için)
     goals_cache_dict = {}
     if os.path.exists(GOALS_CACHE_FILE):
@@ -962,6 +1053,18 @@ def build_desktop_html():
             list(executor.map(fetch_goals_for_tm, scored_today_matches))
         print(f" ✓ Gol bilgileri başarıyla eşleştirildi.")
 
+    # Fikstürdeki tamamlanmış maçlara da gol bilgilerini cache üzerinden doğrudan bağla
+    matched_goals_fix = 0
+    for lid, ldata in cached_data.items():
+        for w in ldata.get("weeks", []):
+            for m in w.get("matches", []):
+                muuid = m.get("uuid")
+                if muuid and muuid in goals_cache_dict and goals_cache_dict[muuid]:
+                    m["goals"] = goals_cache_dict[muuid]
+                    matched_goals_fix += 1
+    if matched_goals_fix > 0:
+        print(f" ✓ Fikstürdeki {matched_goals_fix} maça kayıtlı gol bilgileri bağlandı.")
+
     # Gol cache dosyasını kaydet
     if goals_cache_dict:
         try:
@@ -982,6 +1085,7 @@ def build_desktop_html():
         "default_league": "super-lig-tr",
         "live_scores_today": today_live_matches,
         "all_goals_cache": goals_cache_dict,
+        "all_tv_cache": tv_cache_dict,
         "data": cached_data
     }
 
