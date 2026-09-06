@@ -169,7 +169,7 @@ def send_push_to_all(payload):
 # Match state tracking
 live_matches_state = {}
 
-def process_match_update(update, is_initial=False):
+def process_match_update(update, is_initial=False, is_from_full_sync=False):
     if not update or not isinstance(update, dict):
         return
 
@@ -216,7 +216,16 @@ def process_match_update(update, is_initial=False):
     if "away_team_name" in update and update["away_team_name"]:
         m["away_team"] = update["away_team_name"]
     if "minute" in update and update["minute"] is not None:
-        m["minute"] = str(update["minute"])
+        new_min_val = str(update["minute"])
+        try:
+            cur_min = int(m.get("minute") or 0)
+            in_min = int(new_min_val)
+            if in_min < cur_min and cur_min > 0 and is_from_full_sync:
+                pass  # Bayat tam senkronizasyonun dakikayı geriye çekmesini engelle
+            else:
+                m["minute"] = new_min_val
+        except (ValueError, TypeError):
+            m["minute"] = new_min_val
 
     all_identifiers = match_ids + [m["home_team"], m["away_team"]]
 
@@ -273,14 +282,18 @@ def process_match_update(update, is_initial=False):
     last_goal_time = m.get("last_goal_time", 0)
 
     if new_h is not None and m["home_score"] is not None and new_h < m["home_score"]:
-        # Eğer gol son 12 saniye içinde atılmışsa, bu anlık socket jitter'ıdır, yoksay
-        if (now_ts - last_goal_time) < 12:
+        # Eğer gol son 90 saniye içinde atılmışsa ve istek full_sync'ten geldiyse, veya son 15 sn içindeyse yoksay
+        if (now_ts - last_goal_time) < 90 and is_from_full_sync:
+            new_h = m["home_score"]
+        elif (now_ts - last_goal_time) < 15:
             new_h = m["home_score"]
         else:
             is_home_cancel = True
 
     if new_a is not None and m["away_score"] is not None and new_a < m["away_score"]:
-        if (now_ts - last_goal_time) < 12:
+        if (now_ts - last_goal_time) < 90 and is_from_full_sync:
+            new_a = m["away_score"]
+        elif (now_ts - last_goal_time) < 15:
             new_a = m["away_score"]
         else:
             is_away_cancel = True
@@ -463,7 +476,7 @@ def sahadan_http_sync_worker():
                 new_summary_map = {}
                 for sync_date in dates_to_sync:
                     try:
-                        live_url = f"https://www.sahadan.com/api/index/soccer-live-e?a=bs&e=sams&add_playing=1&extended_period=1&date={sync_date}&application=mackolik.com&language=tr"
+                        live_url = f"https://www.sahadan.com/api/index/soccer-live-e?a=bs&e=sams&add_playing=1&extended_period=1&date={sync_date}&application=mackolik.com&language=tr&_t={int(now)}"
                         req = urllib.request.Request(live_url, headers=headers)
                         with urllib.request.urlopen(req, timeout=10) as res:
                             raw = json.loads(res.read().decode("utf-8"))
@@ -499,8 +512,28 @@ def sahadan_http_sync_worker():
                                             "home_team_name": t_a,
                                             "away_team_name": t_b
                                         }
+
+                                        # Canlı takip edilen maç varsa ve full sync eski/düşük skor/dakika döndüyse koru
+                                        tracked = live_matches_state.get(str(mid))
+                                        if tracked:
+                                            old_h = tracked.get("home_score")
+                                            old_a = tracked.get("away_score")
+                                            old_min = tracked.get("minute")
+                                            last_gt = tracked.get("last_goal_time", 0)
+                                            if (now - last_gt) < 90:
+                                                if old_h is not None and (match_dict.get("fts_A") is None or int(match_dict.get("fts_A", 0)) < old_h):
+                                                    match_dict["fts_A"] = old_h
+                                                if old_a is not None and (match_dict.get("fts_B") is None or int(match_dict.get("fts_B", 0)) < old_a):
+                                                    match_dict["fts_B"] = old_a
+                                            if old_min is not None and match_dict.get("minute") is not None:
+                                                try:
+                                                    if int(match_dict["minute"]) < int(old_min):
+                                                        match_dict["minute"] = old_min
+                                                except (ValueError, TypeError):
+                                                    pass
+
                                         new_summary_map[str(mid)] = match_dict
-                                        process_match_update(match_dict, is_initial=is_initial_sync)
+                                        process_match_update(match_dict, is_initial=is_initial_sync, is_from_full_sync=True)
                     except Exception as sync_err:
                         log_event(f"Sahadan sync error for {sync_date}: {sync_err}")
 

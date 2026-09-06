@@ -780,21 +780,19 @@
 
     .live-filter-group {
       display: grid;
-      grid-template-columns: 1fr auto 1fr;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 8px;
       align-items: center;
       width: 100%;
     }
 
-    #filter-all {
-      justify-self: start;
-    }
-
-    #filter-live {
-      justify-self: center;
-    }
-
-    #filter-favorites {
-      justify-self: end;
+    .live-filter-group .filter-btn {
+      width: 100%;
+      text-align: center;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 6px 4px;
     }
 
     .filter-btn {
@@ -1715,7 +1713,7 @@
         <div class="live-filter-group">
           <button class="filter-btn active" id="filter-all" onclick="filterLiveStatus('all')">Hepsi (<span id="count-all">0</span>)</button>
           <button class="filter-btn" id="filter-live" onclick="filterLiveStatus('live')">Canlı (<span id="count-live">0</span>)</button>
-          <button class="filter-btn" id="filter-favorites" onclick="filterLiveStatus('favorites')">★ Favorilerim (<span id="count-fav">0</span>)</button>
+          <button class="filter-btn" id="filter-favorites" onclick="filterLiveStatus('favorites')">★ Favoriler (<span id="count-fav">0</span>)</button>
         </div>
 
         <div class="live-status-indicator" style="display: none;">
@@ -1998,6 +1996,7 @@
         btnLive.classList.add("active");
         leagueSelector.style.display = "none";
         renderLiveScores();
+        tickLiveMinutes();
       }
     }
 
@@ -2478,15 +2477,15 @@
 
       if (isLive) {
         badgeClass = "playing";
-        const p = m.period || "";
-        if (p === "Half Time" || p === "Devre Arası") {
-          badgeHtml = `<span class="pulse-dot"></span> İY`;
+        const p = (m.period || "").toString().toLowerCase().trim();
+        if (p === "half time" || p === "devre arası" || p === "ht") {
+          badgeHtml = "İY";
         } else {
           let minVal = m.minute ? `${m.minute}'` : "CANLI";
           if (m.minute && m.minute_extra) {
             minVal = `${m.minute}+${m.minute_extra}'`;
           }
-          badgeHtml = `<span class="pulse-dot"></span> ${minVal}`;
+          badgeHtml = minVal;
         }
       } else if (isPlayed) {
         badgeClass = "played";
@@ -2882,10 +2881,12 @@
         let newHome = parseInt(update.fts_A, 10);
         const oldHome = (m.home_score !== null && m.home_score !== undefined && !isNaN(parseInt(m.home_score, 10))) ? parseInt(m.home_score, 10) : null;
 
-        // Jitter Koruması: Eğer gol son 12 saniye içinde atıldıysa ve anlık olarak eski skor geldiyse yoksay
+        // Jitter / Bayat Polling Koruması: WebSocket golü son 90s içinde geldiyse bayat polling 0-0'ı skoru ezmesin
         if (oldHome !== null && newHome < oldHome) {
-          if (nowTs - lastGoalTime < 12000) {
-            newHome = oldHome; // 1-2 saniyelik socket dalgalanmasını engelle
+          if (nowTs - lastGoalTime < 90000 && update._fromPolling) {
+            newHome = oldHome;
+          } else if (nowTs - lastGoalTime < 15000) {
+            newHome = oldHome; // 15 saniyelik anlık dalgalanmayı engelle
           } else if (!isInitialSync) {
             goalCancelled = true;
           }
@@ -2904,9 +2905,11 @@
         let newAway = parseInt(update.fts_B, 10);
         const oldAway = (m.away_score !== null && m.away_score !== undefined && !isNaN(parseInt(m.away_score, 10))) ? parseInt(m.away_score, 10) : null;
 
-        // Jitter Koruması: Eğer gol son 12 saniye içinde atıldıysa ve anlık olarak eski skor geldiyse yoksay
+        // Jitter / Bayat Polling Koruması: WebSocket golü son 90s içinde geldiyse bayat polling 0-0'ı skoru ezmesin
         if (oldAway !== null && newAway < oldAway) {
-          if (nowTs - lastGoalTime < 12000) {
+          if (nowTs - lastGoalTime < 90000 && update._fromPolling) {
+            newAway = oldAway;
+          } else if (nowTs - lastGoalTime < 15000) {
             newAway = oldAway;
           } else if (!isInitialSync) {
             goalCancelled = true;
@@ -2955,7 +2958,21 @@
         statusChanged = true;
       }
       if (update.period) m.period = update.period;
-      if (update.minute !== undefined && update.minute !== null) m.minute = update.minute;
+
+      // Dakika koruması: Canlı maçta dakika geriye gitmez (ör: 6'dan 1'e düşüşü engelle)
+      if (update.minute !== undefined && update.minute !== null) {
+        const newMin = parseInt(update.minute, 10);
+        if (!isNaN(newMin)) {
+          const oldMin = parseInt(m.minute, 10);
+          const samePeriod = !update.period || update.period === m.period;
+          if (!isNaN(oldMin) && newMin < oldMin && samePeriod && oldMin > 0) {
+            // Bayat sunucu cevabının dakikayı geriye çekmesini engelle
+          } else {
+            m.minute = newMin;
+            m._minuteLastUpdated = nowTs;
+          }
+        }
+      }
       if (update.minute_extra !== undefined && update.minute_extra !== null) m.minute_extra = update.minute_extra;
 
       const nowPlayed = isMatchPlayed(m);
@@ -3024,15 +3041,15 @@
         if (isLive) {
           if (badgeWrapper) badgeWrapper.style.display = "inline-flex";
           badgeEl.className = "live-status-badge playing";
-          const p = m.period || "";
-          if (p === "Half Time" || p === "Devre Arası") {
-            badgeEl.innerHTML = `<span class="pulse-dot"></span> İY`;
+          const p = (m.period || "").toString().toLowerCase().trim();
+          if (p === "half time" || p === "devre arası" || p === "ht") {
+            badgeEl.innerText = "İY";
           } else {
             let minStr = m.minute ? `${m.minute}'` : "CANLI";
             if (m.minute && m.minute_extra) {
               minStr = `${m.minute}+${m.minute_extra}'`;
             }
-            badgeEl.innerHTML = `<span class="pulse-dot"></span> ${minStr}`;
+            badgeEl.innerText = minStr;
           }
         } else if (isPlayed) {
           if (badgeWrapper) badgeWrapper.style.display = "inline-flex";
@@ -3084,6 +3101,7 @@
         if (data && Array.isArray(data.matches)) {
           let anyStatusChanged = false;
           data.matches.forEach(item => {
+            item._fromPolling = true;
             const changed = applyLiveMatchUpdate(item);
             if (changed) anyStatusChanged = true;
           });
@@ -3099,6 +3117,54 @@
         // Sessiz fallback
       }
     }
+
+    // Canlı Maçlar İçin Otomatik Dakika İlerletici (Her 15 saniyede kontrol eder)
+    function tickLiveMinutes() {
+      if (currentMainView !== "livescores") return;
+      const now = Date.now();
+
+      liveScoresList.forEach(m => {
+        if (!isMatchLive(m)) return;
+        const p = (m.period || "").toString().toLowerCase().trim();
+        if (p === "half time" || p === "devre arası" || p === "ht") return;
+
+        let curMin = parseInt(m.minute, 10);
+        if (isNaN(curMin) || curMin <= 0) return;
+
+        if (!m._minuteLastUpdated) {
+          m._minuteLastUpdated = now;
+          return;
+        }
+
+        const elapsedSeconds = Math.floor((now - m._minuteLastUpdated) / 1000);
+        if (elapsedSeconds >= 60) {
+          const addedMinutes = Math.floor(elapsedSeconds / 60);
+          let newMin = curMin + addedMinutes;
+
+          // İlk yarı 45'e kadar (uzatma bilgisi yoksa), ikinci yarı 90'a kadar otomatik ilerler
+          const isFirstHalf = p.includes("first") || p.includes("1") || p === "first half";
+          if (isFirstHalf && newMin > 45 && !m.minute_extra) {
+            newMin = 45;
+          } else if (!isFirstHalf && newMin > 90 && !m.minute_extra) {
+            newMin = 90;
+          }
+
+          if (newMin !== curMin) {
+            m.minute = newMin;
+            m._minuteLastUpdated = now - (elapsedSeconds % 60) * 1000;
+
+            const badgeEl = document.getElementById(`live-badge-${m.match_id}`);
+            if (badgeEl && isMatchLive(m)) {
+              let minStr = `${m.minute}'`;
+              if (m.minute_extra) minStr = `${m.minute}+${m.minute_extra}'`;
+              badgeEl.innerText = minStr;
+            }
+          }
+        }
+      });
+    }
+
+    setInterval(tickLiveMinutes, 15000);
 
     // Sahadan Canlı WebSocket Entegrasyonu (Gerçek zamanlı Socket.io v2)
     function initLiveSocket() {
