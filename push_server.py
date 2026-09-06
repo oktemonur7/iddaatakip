@@ -14,6 +14,7 @@ PORT = int(os.environ.get("PORT", 8080))
 SUBSCRIPTIONS_FILE = "subscriptions.json"
 VAPID_FILE = "vapid_keys.json"
 CACHE_FILE = "leagues_cache.json"
+STREAM_PLAYER_CACHE = {}
 
 last_push_logs = []
 
@@ -657,6 +658,106 @@ class RequestHandler(http.server.SimpleHTTPRequestHandler):
         self.end_headers()
 
     def do_GET(self):
+        if self.path.startswith("/api/stream-player"):
+            from urllib.parse import urlparse, parse_qs
+            query = parse_qs(urlparse(self.path).query)
+            match_id = query.get("id", [""])[0]
+            server_name = query.get("server", ["falcon"])[0]
+            player_html = None
+            cache_key = f"{server_name}_{match_id}"
+            now = time.time()
+            if cache_key in STREAM_PLAYER_CACHE and (now - STREAM_PLAYER_CACHE[cache_key]["time"] < 120):
+                player_html = STREAM_PLAYER_CACHE[cache_key]["html"]
+            elif match_id:
+                try:
+                    target_url = f"https://ntv.cx/watch/{server_name}/{match_id}"
+                    req = urllib.request.Request(target_url, headers={"User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)"})
+                    html = urllib.request.urlopen(req, timeout=7).read().decode("utf-8")
+                    m = re.search(r'src=[\"\'](/embed\?t=[^\"\']+)[\"\']', html)
+                    if m:
+                        embed_url = "https://ntv.cx" + m.group(1)
+                        req2 = urllib.request.Request(embed_url, headers={"User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)", "Referer": target_url})
+                        raw_html = urllib.request.urlopen(req2, timeout=7).read().decode("utf-8")
+                        
+                        # 1. Kill loading screen immediately from CSS parse cycle 0 & make streamIframe immediate
+                        head_override = '<head><style>#loadingScreen, .loading-screen, .loading-container, .loading-progress, .loading-progress-bar { display: none !important; opacity: 0 !important; visibility: hidden !important; height: 0 !important; pointer-events: none !important; } #streamIframe { display: block !important; width: 100% !important; height: 100% !important; border: none !important; opacity: 1 !important; visibility: visible !important; }</style>'
+                        clean = raw_html.replace('<head>', head_override)
+                        clean = clean.replace('id="loadingScreen"', 'id="loadingScreen" style="display:none!important;"')
+                        clean = re.sub(r'<div[^>]+id=[\"\']loadingScreen[\"\'][^>]*>.*?</div>\s*</div>', '', clean, flags=re.DOTALL)
+                        
+                        # 2. Strip popunder ads and trackers
+                        clean = re.sub(r'<script[^>]*zeugmatacket[^>]*>.*?</script>', '', clean, flags=re.DOTALL)
+                        clean = re.sub(r'aclib\.runPop\([^)]*\);?', '', clean)
+                        clean = re.sub(r'//gg\.zeugmatacket\.com/[^\"\']*', '', clean)
+                        
+                        # 3. Add full autoplay & media permissions & autoplay query parameters
+                        clean = re.sub(r'allow=[\"\'][^\"\']*[\"\']', 'allow="accelerometer; autoplay *; clipboard-write *; encrypted-media *; gyroscope; picture-in-picture *; web-share"', clean)
+                        clean = clean.replace('ntvplayer.html?id=', 'ntvplayer.html?autoplay=1&muted=1&id=')
+                        
+                        # 4. Inject autoplay trigger
+                        clean = clean.replace('</body>', '''
+<script>
+(function() {
+    function tryPlay() {
+        var ifr = document.getElementById("streamIframe");
+        if (ifr && ifr.contentWindow) {
+            try {
+                ifr.focus();
+                ifr.contentWindow.postMessage('{"event":"command","func":"playVideo","args":""}', '*');
+                ifr.contentWindow.postMessage('play', '*');
+            } catch(e) {}
+        }
+    }
+    window.addEventListener("DOMContentLoaded", tryPlay);
+    window.addEventListener("load", tryPlay);
+    document.addEventListener("click", tryPlay);
+    setTimeout(tryPlay, 500);
+    setTimeout(tryPlay, 1500);
+})();
+</script>
+</body>''')
+                        player_html = clean
+                        STREAM_PLAYER_CACHE[cache_key] = {"html": player_html, "time": now}
+                except Exception as e:
+                    print("Error generating stream player:", e)
+            
+            if player_html:
+                self.send_response(200)
+                self.send_header("Content-Type", "text/html; charset=utf-8")
+                self.send_header("Access-Control-Allow-Origin", "*")
+                self.send_header("Cache-Control", "no-cache, no-store, must-revalidate")
+                self.end_headers()
+                self.wfile.write(player_html.encode("utf-8"))
+            else:
+                self.send_response(302)
+                self.send_header("Location", f"https://ntv.cx/watch/{server_name}/{match_id}")
+                self.end_headers()
+            return
+
+        if self.path.startswith("/api/stream-embed"):
+            from urllib.parse import urlparse, parse_qs
+            query = parse_qs(urlparse(self.path).query)
+            match_id = query.get("id", [""])[0]
+            server_name = query.get("server", ["falcon"])[0]
+            embed_url = None
+            if match_id:
+                try:
+                    target_url = f"https://ntv.cx/watch/{server_name}/{match_id}"
+                    req = urllib.request.Request(target_url, headers={"User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)"})
+                    html = urllib.request.urlopen(req, timeout=6).read().decode("utf-8")
+                    m = re.search(r'src=[\"\'](/embed\?t=[^\"\']+)[\"\']', html)
+                    if m:
+                        embed_url = "https://ntv.cx" + m.group(1)
+                except Exception as e:
+                    print("Error resolving stream embed:", e)
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json; charset=utf-8")
+            self.send_header("Access-Control-Allow-Origin", "*")
+            self.send_header("Cache-Control", "no-cache, no-store, must-revalidate")
+            self.end_headers()
+            self.wfile.write(json.dumps({"success": bool(embed_url), "embed_url": embed_url}).encode("utf-8"))
+            return
+
         if self.path.startswith("/api/live-sync") or self.path.startswith("/api/live-matches"):
             self.send_response(200)
             self.send_header("Content-Type", "application/json")

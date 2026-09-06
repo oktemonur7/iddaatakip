@@ -217,6 +217,7 @@ def parse_sahadan_league(target_url, max_retries=3):
                             st = m.get("status", "")
                             matches.append({
                                 "id": m.get("id"),
+                                "uuid": m.get("uuid"),
                                 "date_time": m.get("date_time_utc"),
                                 "match_time": m.get("match_time"),
                                 "status": st,
@@ -407,6 +408,97 @@ def fetch_live_scores_today():
 
 import html as html_parser
 from concurrent.futures import ThreadPoolExecutor
+import unicodedata
+
+def to_sahadan_slug(text):
+    if not text:
+        return ""
+    tr_map = {'ı':'i', 'I':'i', 'İ':'i', 'ş':'s', 'Ş':'s', 'ğ':'g', 'Ğ':'g', 'ü':'u', 'Ü':'u', 'ö':'o', 'Ö':'o', 'ç':'c', 'Ç':'c'}
+    for k, v in tr_map.items():
+        text = text.replace(k, v)
+    text = unicodedata.normalize('NFKD', text).encode('ascii', 'ignore').decode('utf-8')
+    text = re.sub(r'[^\w\s-]', '', text).strip().lower()
+    return re.sub(r'[-\s]+', '-', text)
+
+def fetch_match_goals(home, away, uuid):
+    if not uuid:
+        return []
+    slug = f"{to_sahadan_slug(home)}-vs-{to_sahadan_slug(away)}"
+    url = f"https://www.sahadan.com/mac/{slug}/{uuid}"
+    try:
+        req = urllib.request.Request(url, headers={
+            "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            "Accept-Language": "tr-TR,tr;q=0.9",
+            "Cache-Control": "no-cache"
+        })
+        html = urllib.request.urlopen(req, timeout=8).read().decode("utf-8")
+        m = re.search(r'<script[^>]*id=\"__NUXT_DATA__\"[^>]*>(.*?)</script>', html)
+        if not m:
+            return []
+        data = json.loads(m.group(1))
+
+        memo = {}
+        def deep_resolve(val, depth=0):
+            if depth > 20: return val
+            if isinstance(val, int) and 0 <= val < len(data):
+                if val in memo: return memo[val]
+                raw = data[val]
+                if isinstance(raw, list) and len(raw) == 2 and raw[0] in ('ShallowReactive', 'Reactive', 'Set', 'Map'):
+                    res = deep_resolve(raw[1], depth + 1)
+                    memo[val] = res
+                    return res
+                if isinstance(raw, dict):
+                    res = {}
+                    memo[val] = res
+                    for k, v in raw.items(): res[k] = deep_resolve(v, depth + 1)
+                    return res
+                if isinstance(raw, list):
+                    res = []
+                    memo[val] = res
+                    for item in raw: res.append(deep_resolve(item, depth + 1))
+                    return res
+                return raw
+            elif isinstance(val, dict):
+                return {k: deep_resolve(v, depth + 1) for k, v in val.items()}
+            elif isinstance(val, list):
+                return [deep_resolve(v, depth + 1) for v in val]
+            return val
+
+        resolved = deep_resolve(2)
+        events = []
+        def find_key_events(obj, depth=0):
+            if depth > 10: return
+            if isinstance(obj, dict):
+                if 'key_events' in obj and isinstance(obj['key_events'], list):
+                    events.extend(obj['key_events'])
+                    return
+                for v in obj.values():
+                    find_key_events(v, depth + 1)
+            elif isinstance(obj, list):
+                for item in obj:
+                    find_key_events(item, depth + 1)
+
+        find_key_events(resolved)
+        goals = []
+        for ev in events:
+            t = ev.get('type')
+            if t in ('G', 'PG', 'OG'):
+                scorer = ev.get('scorer', {}) or {}
+                assist = ev.get('assist', {}) or {}
+                goals.append({
+                    'type': t,
+                    'minute': ev.get('minute'),
+                    'extra_min': ev.get('minute_extra'),
+                    'team': ev.get('team'),
+                    'scorer': scorer.get('name') or scorer.get('display_name') or 'Bilinmiyor',
+                    'assist': assist.get('name') or assist.get('display_name') or '',
+                    'score_A': ev.get('score_A'),
+                    'score_B': ev.get('score_B')
+                })
+        return goals
+    except Exception as e:
+        return []
+
 
 def norm_team_name(s):
     if not s:
@@ -414,6 +506,7 @@ def norm_team_name(s):
     s = html_parser.unescape(s).replace("İ", "i").replace("I", "i").lower()
     # Normalize common abbreviations and prefixes
     s = re.sub(r"\bo\.?\s*h\.?\s*", "oh ", s)
+    s = re.sub(r"\bç\.?\s*", " ", s)  # Ç. Rizespor -> Rizespor
     s = re.sub(r"\bfatih\s+", "f ", s)
     abbr_map = {
         r"\br\.\s*": "real ",
@@ -432,7 +525,7 @@ def norm_team_name(s):
         s = re.sub(pattern, repl, s)
 
     # Remove common club suffixes/prefixes
-    s = re.sub(r"\b(sk|fk|fc|cf|cd|sc|as|w)\b\.?", " ", s)
+    s = re.sub(r"\b(sk|fk|fc|cf|cd|sc|as|w|praia)\b\.?", " ", s)
 
     ch_map = {'ü': 'u', 'ö': 'o', 'ı': 'i', 'ş': 's', 'ç': 'c', 'ğ': 'g', 'é': 'e', 'è': 'e', 'á': 'a', 'à': 'a', 'ä': 'a', 'ø': 'o', 'æ': 'ae', 'í': 'i', 'ó': 'o', 'ú': 'u'}
     for ch in [' ', '.', '-', '\t', '\'', '’', 'ü', 'ö', 'ı', 'ş', 'ç', 'ğ', 'é', 'è', 'á', 'à', 'ä', 'ø', 'æ', 'í', 'ó', 'ú', 'club', 'de']:
@@ -440,7 +533,7 @@ def norm_team_name(s):
     return s
 
 def fetch_iddaa_odds(all_target_teams=None):
-    print("İddaa bülteninden (Sahadan & iddaa.com) tüm maçların güncel oranları (MS, 2.5 Alt/Üst, KG Var/Yok) taranıyor...")
+    print("İddaa bülteninden (Sahadan, iddaa.com & Nesine resmi bülteni) güncel ve ileri tarihli oranlar taranıyor...")
     all_odds = {}
 
     headers_sahadan = {
@@ -454,9 +547,45 @@ def fetch_iddaa_odds(all_target_teams=None):
         "Referer": "https://www.iddaa.com/"
     }
 
-    # 1. Sahadan.com Nuxt Programı (600+ maç)
+    # 1. Nesine / İddaa Resmi Full Ön Bülten (Haftalık ve ertesi gün tüm maçları)
     try:
-        req_s = urllib.request.Request("https://www.sahadan.com/iddaa-programi", headers=headers_sahadan)
+        url_nesine = "https://cdnbulten.nesine.com/api/bulten/getprebultenfull"
+        req_n = urllib.request.Request(url_nesine, headers={"User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)"})
+        res_n = json.loads(urllib.request.urlopen(req_n, timeout=12).read().decode("utf-8"))
+        events_n = res_n.get("sg", {}).get("EA", [])
+        for e in events_n:
+            hn = e.get("HN", "").strip()
+            an = e.get("AN", "").strip()
+            if not hn or not an:
+                continue
+            odds = {}
+            for m in e.get("MA", []):
+                mtid = m.get("MTID")
+                sov = m.get("SOV")
+                oca = {o.get("N"): str(o.get("O")) for o in m.get("OCA", [])}
+                # Maç Sonucu (1-X-2)
+                if mtid == 1 and 1 in oca and 2 in oca and 3 in oca:
+                    odds["ms1"] = oca[1]
+                    odds["ms0"] = oca[2]
+                    odds["ms2"] = oca[3]
+                # 2.5 Alt/Üst
+                elif mtid == 12 and sov == 2.5 and 1 in oca and 2 in oca:
+                    odds["alt"] = oca[1]
+                    odds["ust"] = oca[2]
+                # KG Var/Yok
+                elif mtid == 49 and 1 in oca and 2 in oca:
+                    odds["kg_var"] = oca[1]
+                    odds["kg_yok"] = oca[2]
+            if "ms1" in odds and "ms0" in odds and "ms2" in odds:
+                all_odds[(hn, an)] = odds
+        print(f" ✓ Nesine resmi bülteninden {len(all_odds)} maçlık güncel/gelecek oran toplandı.")
+    except Exception as e:
+        print(f" ! Nesine bülteni okunurken hata: {e}")
+
+    # 2. Sahadan.com Nuxt Programı (Bugün ve bültendeki tüm maçlar)
+    try:
+        url_s = "https://www.sahadan.com/iddaa-programi"
+        req_s = urllib.request.Request(url_s, headers=headers_sahadan)
         html_s = urllib.request.urlopen(req_s, timeout=12).read().decode("utf-8")
         m = re.search(r'<script[^>]*id=\"__NUXT_DATA__\"[^>]*>(.*?)</script>', html_s)
         if m:
@@ -485,6 +614,10 @@ def fetch_iddaa_odds(all_target_teams=None):
                                 for opt_idx in o_list:
                                     opt = resolve(opt_idx)
                                     if isinstance(opt, dict):
+                                        b = resolve(opt.get("b"))
+                                        # Sadece b == 14 resmi İddaa oranıdır (b == 15 Kral Oran/promosyondur)
+                                        if b != 14:
+                                            continue
                                         lines = resolve(opt.get("l"))
                                         if isinstance(lines, list):
                                             for line_idx in lines:
@@ -492,114 +625,124 @@ def fetch_iddaa_odds(all_target_teams=None):
                                                 if isinstance(line_d, dict):
                                                     name = resolve(line_d.get("n"))
                                                     val = resolve(line_d.get("v"))
-                                                    if mi in (1, 3):
-                                                        if name == "1" and ("ms1" not in odds or mi == 1):
+                                                    if mi == 1:
+                                                        if name == "1":
                                                             odds["ms1"] = str(val)
-                                                        elif name in ("0", "X", "x") and ("ms0" not in odds or mi == 1):
+                                                        elif name in ("0", "X", "x"):
                                                             odds["ms0"] = str(val)
-                                                        elif name == "2" and ("ms2" not in odds or mi == 1):
+                                                        elif name == "2":
                                                             odds["ms2"] = str(val)
-                                                    elif mi in (10, 11):
-                                                        if name == "Alt" and ("alt" not in odds or mi == 10):
+                                                    elif mi == 10:
+                                                        if name == "Alt":
                                                             odds["alt"] = str(val)
-                                                        elif name == "Üst" and ("ust" not in odds or mi == 10):
+                                                        elif name == "Üst":
                                                             odds["ust"] = str(val)
                                                     elif mi == 6:
-                                                        if name == "Var": odds["kg_var"] = str(val)
-                                                        elif name == "Yok": odds["kg_yok"] = str(val)
-                    if "ms1" in odds:
-                        all_odds[(tA, tB)] = odds
-            print(f" ✓ Sahadan bülteninden {len(all_odds)} maçlık İddaa oranları toplandı.")
+                                                        if name == "Var":
+                                                            odds["kg_var"] = str(val)
+                                                        elif name == "Yok":
+                                                            odds["kg_yok"] = str(val)
+                    if "ms1" in odds and "ms0" in odds and "ms2" in odds:
+                        if (tA, tB) not in all_odds:
+                            all_odds[(tA, tB)] = odds
+                        else:
+                            for k, v in odds.items():
+                                if k not in all_odds[(tA, tB)]:
+                                    all_odds[(tA, tB)][k] = v
     except Exception as e:
         print(f" ! Sahadan bülteni okunurken hata: {e}")
+    print(f" ✓ Sahadan & Nesine bültenlerinden toplam {len(all_odds)} maçlık oran toplandı.")
 
-    # 2. iddaa.com Resmi Sportsbook API (Tüm resmi bülten & oranlar)
+    # 3. iddaa.com Resmi Sportsbook API (Tüm resmi bülten & anlık oranlar)
     try:
         req_i = urllib.request.Request("https://sportsbookv2.iddaa.com/sportsbook/events?type=1&sportId=1", headers=headers_iddaa)
         events = json.loads(urllib.request.urlopen(req_i, timeout=12).read().decode("utf-8")).get("data", {}).get("events", [])
 
-        target_events = []
         for e in events:
             if e.get("sid") == 1:
                 hn = e.get("hn", "")
                 an = e.get("an", "")
-                norm_h = norm_team_name(hn)
-                norm_a = norm_team_name(an)
-                
-                # Check if matches target teams
-                is_relevant = True
-                if all_target_teams:
-                    h_ok = any(t in norm_h or norm_h in t for t in all_target_teams)
-                    a_ok = any(t in norm_a or norm_a in t for t in all_target_teams)
-                    is_relevant = (h_ok and a_ok)
-
-                if is_relevant:
-                    # Target id is preferably mpi if present, or i
-                    target_id = e.get("mpi") or e.get("i")
-                    target_events.append((target_id, hn, an))
-
-        print(f" ✓ iddaa.com üzerinden {len(target_events)} maçın canlı oran detayları çekiliyor...")
-        def fetch_single_event(item):
-            eid, hn, an = item
-            url = f"https://sportsbookv2.iddaa.com/sportsbook/event/{eid}"
-            try:
-                data = json.loads(urllib.request.urlopen(urllib.request.Request(url, headers=headers_iddaa), timeout=6).read().decode("utf-8"))
-                ev = data.get("data", {})
+                if not hn or not an:
+                    continue
                 odds = {}
-                for m in ev.get("m", []):
+                for m in e.get("m", []):
                     st = m.get("st")
-                    sov = str(m.get("sov") or "")
-                    o_dict = {str(o.get("n")): str(o.get("wodd") or o.get("odd")) for o in m.get("o", [])}
-                    draw_key = "X" if "X" in o_dict else ("0" if "0" in o_dict else None)
-                    if "1" in o_dict and "2" in o_dict and draw_key:
+                    sov = str(m.get("sov") or "").strip()
+                    o_dict = {str(o.get("n")): str(o.get("odd") or o.get("wodd")) for o in m.get("o", [])}
+                    draw_key = "0" if "0" in o_dict else ("X" if "X" in o_dict else None)
+                    # st == 4 is Maç Sonucu
+                    if st == 4 and "1" in o_dict and "2" in o_dict and draw_key:
                         odds["ms1"] = o_dict["1"]
                         odds["ms0"] = o_dict[draw_key]
                         odds["ms2"] = o_dict["2"]
-                    elif "Alt" in o_dict and "Üst" in o_dict and (sov == "2.5" or "alt" not in odds):
+                    # st == 14 and sov == "2.5" is 2.5 Alt/Üst
+                    elif st == 14 and sov == "2.5" and "Alt" in o_dict and "Üst" in o_dict:
                         odds["alt"] = o_dict["Alt"]
                         odds["ust"] = o_dict["Üst"]
-                    elif "Var" in o_dict and "Yok" in o_dict:
+                    # st == 131 is KG Var/Yok
+                    elif st == 131 and "Var" in o_dict and "Yok" in o_dict:
                         odds["kg_var"] = o_dict["Var"]
                         odds["kg_yok"] = o_dict["Yok"]
-                if "ms1" in odds:
-                    return hn, an, odds
-            except:
-                pass
-            return hn, an, None
-
-        with ThreadPoolExecutor(max_workers=25) as executor:
-            for hn, an, odds in executor.map(fetch_single_event, target_events):
-                if odds:
-                    # Update or merge
-                    if (hn, an) in all_odds:
-                        all_odds[(hn, an)].update(odds)
-                    else:
+                if "ms1" in odds and "ms0" in odds and "ms2" in odds:
+                    if (hn, an) not in all_odds:
                         all_odds[(hn, an)] = odds
+                    else:
+                        for k, v in odds.items():
+                            if k not in all_odds[(hn, an)]:
+                                all_odds[(hn, an)][k] = v
 
         print(f" ✓ iddaa.com senkronizasyonu tamamlandı. Toplam havuz: {len(all_odds)} maç.")
     except Exception as e:
         print(f" ! iddaa.com taranırken hata: {e}")
 
-    # Build clean lookup dictionary
+    # Build clean lookup dictionary and pre-tokenized index
     clean_dict = {}
+    pretokenized_list = []
     for (tA, tB), odds in all_odds.items():
-        clean_dict[f"{norm_team_name(tA)}__{norm_team_name(tB)}"] = odds
+        nA = norm_team_name(tA)
+        nB = norm_team_name(tB)
+        clean_dict[f"{nA}__{nB}"] = odds
+        tokA = set(get_team_tokens(tA))
+        tokB = set(get_team_tokens(tB))
+        if tokA and tokB:
+            pretokenized_list.append((tokA, tokB, odds))
 
-    return clean_dict
+    return {"exact": clean_dict, "tokenized": pretokenized_list, "raw": all_odds}
 
-def match_odds(tA, tB, clean_dict):
-    if not clean_dict:
+def get_team_tokens(name):
+    if not name:
+        return []
+    s = html_parser.unescape(name).replace("İ", "i").replace("I", "i").lower()
+    ch_map = {'ü': 'u', 'ö': 'o', 'ı': 'i', 'ş': 's', 'ç': 'c', 'ğ': 'g', 'é': 'e', 'è': 'e', 'á': 'a', 'à': 'a', 'ä': 'a', 'ø': 'o', 'æ': 'ae', 'í': 'i', 'ó': 'o', 'ú': 'u'}
+    for k, v in ch_map.items():
+        s = s.replace(k, v)
+    words = re.findall(r'[a-z0-9]+', s)
+    stop_words = {'sk', 'fk', 'fc', 'cf', 'cd', 'sc', 'as', 'w', 'club', 'de', 'spor', 'kulubu', 'kulub', 'women', 'united', 'city', 'c', 'praia'}
+    filtered = [w for w in words if w not in stop_words and len(w) >= 3]
+    if not filtered:
+        filtered = [w for w in words if w not in stop_words and len(w) >= 2]
+    return filtered
+
+def match_odds(tA, tB, odds_lookup):
+    if not odds_lookup:
         return None
+    exact_dict = odds_lookup.get("exact", {})
     nA = norm_team_name(tA)
     nB = norm_team_name(tB)
     k = f"{nA}__{nB}"
-    if k in clean_dict:
-        return clean_dict[k]
-    # Fuzzy match
-    for ok, ov in clean_dict.items():
-        okA, okB = ok.split("__")
-        if (nA in okA or okA in nA) and (nB in okB or okB in nB):
+    if k in exact_dict:
+        return exact_dict[k]
+    
+    tokensA = set(get_team_tokens(tA))
+    tokensB = set(get_team_tokens(tB))
+    if not tokensA or not tokensB:
+        return None
+
+    # Pre-tokenized instant match
+    for c_tokensA, c_tokensB, ov in odds_lookup.get("tokenized", []):
+        if (tokensA & c_tokensA) and (tokensB & c_tokensB):
             return ov
+    return None
 def fetch_tv_broadcasts():
     print("Sahadan.com TV Programı (Canlı Yayın Akışı) taranıyor...")
     tv_map = {}
@@ -783,7 +926,26 @@ def build_desktop_html():
                     if chs:
                         m["tv_channels"] = chs
                         matched_tv_fix += 1
-        print(f" ✓ Fikstür maçlarından toplam {matched_tv_fix} maça TV yayın kanalları eşleştirildi.")
+    # Canlı ve tamamlanan maçların gollerini pre-fetch et (Hızlı açılması için)
+    scored_today_matches = []
+    for tm in (today_live_matches or []):
+        hs = tm.get("home_score")
+        as_ = tm.get("away_score")
+        if ((hs is not None and hs > 0) or (as_ is not None and as_ > 0)) and tm.get("uuid"):
+            scored_today_matches.append(tm)
+
+    if scored_today_matches:
+        print(f"Gol olan {len(scored_today_matches)} güncel maç için gol bilgileri taranıyor...")
+        def fetch_goals_for_tm(tm):
+            try:
+                g = fetch_match_goals(tm.get("home_team", ""), tm.get("away_team", ""), tm.get("uuid"))
+                if g:
+                    tm["goals"] = g
+            except Exception:
+                pass
+        with ThreadPoolExecutor(max_workers=6) as executor:
+            list(executor.map(fetch_goals_for_tm, scored_today_matches))
+        print(f" ✓ Gol bilgileri başarıyla eşleştirildi.")
 
     # Cache yaz
     with open(CACHE_FILE, "w", encoding="utf-8") as f:
@@ -814,7 +976,10 @@ def build_desktop_html():
         )
 
     injected_js = f"window.INITIAL_ALL_LEAGUES = {json.dumps(payload, ensure_ascii=False)};\n"
-    modified_html = template.replace("// EMBEDDED_DATA_PLACEHOLDER", injected_js)
+    if "// EMBEDDED_DATA_PLACEHOLDER" in template:
+        modified_html = template.replace("// EMBEDDED_DATA_PLACEHOLDER", injected_js)
+    else:
+        modified_html = re.sub(r'window\.INITIAL_ALL_LEAGUES\s*=\s*\{.*?\};\n', lambda _: injected_js, template)
 
     # Desktop'a yaz (sadece macOS'ta)
     if os.path.isdir("/Users/onur/Desktop"):
@@ -827,6 +992,8 @@ def build_desktop_html():
     dist_dir = os.path.dirname(OUTPUT_HTML)
     os.makedirs(dist_dir, exist_ok=True)
     with open(OUTPUT_HTML, "w", encoding="utf-8") as f:
+        f.write(modified_html)
+    with open(TEMPLATE_HTML, "w", encoding="utf-8") as f:
         f.write(modified_html)
 
     # PWA dosyalarını dist/ klasörüne kopyala
