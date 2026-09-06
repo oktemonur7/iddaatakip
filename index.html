@@ -1564,16 +1564,33 @@
 
     // Favoriler (localStorage'da saklanır ve her sabah saat 07:00'de otomatik sıfırlanır)
     function getFavoritesCycleId() {
-      const now = new Date();
-      const utcMs = now.getTime() + (now.getTimezoneOffset() * 60000);
-      const trNow = new Date(utcMs + (3 * 3600000));
-      if (trNow.getHours() < 7) {
-        trNow.setDate(trNow.getDate() - 1);
+      try {
+        const parts = new Intl.DateTimeFormat("en-US", {
+          timeZone: "Europe/Istanbul",
+          year: "numeric",
+          month: "2-digit",
+          day: "2-digit",
+          hour: "2-digit",
+          hour12: false
+        }).formatToParts(new Date());
+        const p = {};
+        for (const item of parts) {
+          p[item.type] = item.value;
+        }
+        let hour = parseInt(p.hour, 10);
+        if (hour === 24) hour = 0;
+        const d = new Date(Date.UTC(parseInt(p.year, 10), parseInt(p.month, 10) - 1, parseInt(p.day, 10)));
+        if (hour < 7) {
+          d.setUTCDate(d.getUTCDate() - 1);
+        }
+        const y = d.getUTCFullYear();
+        const m = String(d.getUTCMonth() + 1).padStart(2, "0");
+        const day = String(d.getUTCDate()).padStart(2, "0");
+        return `${y}-${m}-${day}`;
+      } catch (e) {
+        const now = new Date();
+        return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
       }
-      const y = trNow.getFullYear();
-      const m = String(trNow.getMonth() + 1).padStart(2, "0");
-      const d = String(trNow.getDate()).padStart(2, "0");
-      return `${y}-${m}-${d}`;
     }
 
     let favoriteMatchIds = new Set();
@@ -1829,6 +1846,8 @@
       const subTitle = document.getElementById("sub-title");
       if (subTitle) {
         if (currentMainView === "leagues") {
+          const teamCount = currentLeagueData.standings?.length || 0;
+          const weekCount = currentLeagueData.weeks?.length || 0;
           subTitle.style.display = "block";
           subTitle.innerText = `${teamCount} Takım • ${weekCount} Hafta`;
         } else {
