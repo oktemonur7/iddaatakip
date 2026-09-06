@@ -932,16 +932,40 @@
       align-items: center;
       justify-content: center;
       cursor: pointer;
+      outline: none;
     }
 
-    .live-badge-wrapper:hover {
-      z-index: 100;
+    .live-badge-wrapper:hover,
+    .live-badge-wrapper:active,
+    .live-badge-wrapper:focus {
+      z-index: 500;
     }
 
-    .live-badge-wrapper:hover .odds-tooltip {
+    .live-badge-wrapper .odds-tooltip {
+      bottom: auto;
+      top: 50%;
+      left: calc(100% + 8px);
+      transform: translateY(-50%) translateX(-4px);
+      z-index: 1000;
+    }
+
+    .live-badge-wrapper:hover .odds-tooltip,
+    .live-badge-wrapper:active .odds-tooltip,
+    .live-badge-wrapper:focus .odds-tooltip {
       visibility: visible;
       opacity: 1;
-      transform: translateX(-50%) translateY(0);
+      transform: translateY(-50%) translateX(0);
+    }
+
+    .live-badge-wrapper .odds-tooltip::after {
+      top: 50%;
+      left: auto;
+      right: 100%;
+      bottom: auto;
+      transform: translateY(-50%);
+      border-width: 6px;
+      border-style: solid;
+      border-color: transparent #090e1a transparent transparent;
     }
 
     /* Favori Butonu */
@@ -2445,7 +2469,7 @@
           </button>
 
           <!-- Durum Rozeti (Saat / Dakika / MS) ve Tooltip Alanı -->
-          <div class="live-badge-wrapper" title="${(chs && chs.length) || m.odds ? 'Yayın & Oranlar' : ''}">
+          <div class="live-badge-wrapper" tabindex="0" title="${(chs && chs.length) || m.odds ? 'Yayın & Oranlar' : ''}">
             <span class="live-status-badge ${badgeClass}" id="live-badge-${m.match_id}">${badgeHtml}</span>
             ${oddsHtml}
           </div>
