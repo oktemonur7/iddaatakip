@@ -975,61 +975,6 @@
       border-color: rgba(250, 204, 21, 0.3);
     }
 
-    .live-badge-wrapper {
-      position: relative;
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      cursor: pointer;
-      outline: none;
-      flex-shrink: 0;
-      width: 32px;
-      min-width: 32px;
-    }
-
-    .live-badge-wrapper .odds-tooltip {
-      bottom: auto;
-      top: 50%;
-      left: calc(100% + 8px);
-      transform: translateY(-50%) translateX(-4px);
-      z-index: 1000;
-      pointer-events: none;
-    }
-
-    .live-badge-wrapper.tooltip-open {
-      z-index: 1000;
-    }
-
-    .live-badge-wrapper.tooltip-open .odds-tooltip {
-      visibility: visible;
-      opacity: 1;
-      transform: translateY(-50%) translateX(0);
-      pointer-events: auto;
-    }
-
-    @media (hover: hover) and (pointer: fine) {
-      .live-badge-wrapper:hover {
-        z-index: 1000;
-      }
-      .live-badge-wrapper:hover .odds-tooltip {
-        visibility: visible;
-        opacity: 1;
-        transform: translateY(-50%) translateX(0);
-        pointer-events: auto;
-      }
-    }
-
-    .live-badge-wrapper .odds-tooltip::after {
-      top: 50%;
-      left: auto;
-      right: 100%;
-      bottom: auto;
-      transform: translateY(-50%);
-      border-width: 6px;
-      border-style: solid;
-      border-color: transparent #090e1a transparent transparent;
-    }
-
     /* Favori Butonu */
     .live-fav-btn {
       background: transparent;
@@ -1040,11 +985,11 @@
       align-items: center;
       justify-content: center;
       padding: 2px 4px;
-      margin-right: 6px;
       border-radius: 4px;
       transition: all 0.2s ease;
       font-size: 0.88rem;
       flex-shrink: 0;
+      width: 22px;
     }
 
     .live-fav-btn:hover {
@@ -1057,45 +1002,11 @@
       filter: drop-shadow(0 0 5px rgba(250, 204, 21, 0.7));
     }
 
-    /* Tek ve Net Durum Rozeti (Başlamadıysa boşluk, Başladıysa Dakika, Bittiyse MS) */
-    .live-status-badge {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      font-family: 'JetBrains Mono', monospace;
-      font-size: 0.8rem;
-      font-weight: 800;
-      width: 32px;
-      min-width: 32px;
-      text-align: center;
+    /* Kartın sağında simetri sağlayan boşluk (yıldız butonunun genişliği kadar) */
+    .live-fav-spacer {
+      width: 22px;
       flex-shrink: 0;
-      background: transparent;
-      border: none;
-      box-shadow: none;
-      padding: 0;
-    }
-
-    .live-status-badge.playing {
-      color: #00ff85;
-      text-shadow: 0 0 8px rgba(0, 255, 133, 0.45);
-      background: transparent;
-      border: none;
-      box-shadow: none;
-    }
-
-    .live-status-badge.played {
-      color: var(--text-muted);
-      font-size: 0.74rem;
-      background: transparent;
-      border: none;
-      box-shadow: none;
-    }
-
-    .live-status-badge.fixture {
-      color: transparent;
-      background: transparent;
-      border: none;
-      box-shadow: none;
+      pointer-events: none;
     }
 
     .live-match-main {
@@ -1131,27 +1042,30 @@
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      min-width: 54px;
+      min-width: 68px;
       padding: 3px 8px;
       border-radius: 6px;
       background: rgba(0, 0, 0, 0.6);
       border: 1px solid rgba(255, 255, 255, 0.12);
       font-family: 'JetBrains Mono', monospace;
-      font-size: 0.95rem;
-      font-weight: 800;
       color: #fff;
       box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
       transition: all 0.25s ease;
       cursor: pointer;
+      flex-shrink: 0;
+    }
+
+    .live-score-display.live-active {
+      border-color: rgba(0, 255, 133, 0.4);
+      background: rgba(0, 255, 133, 0.08);
+      box-shadow: 0 0 10px rgba(0, 255, 133, 0.18);
     }
 
     .live-score-display.fixture-time {
       color: #bae6fd;
       background: rgba(56, 189, 248, 0.09);
       border: 1px solid rgba(56, 189, 248, 0.28);
-      font-size: 0.88rem;
-      font-weight: 800;
-      letter-spacing: 0.03em;
+      min-width: 58px;
     }
 
     .live-score-display.fixture-time:hover {
@@ -1159,6 +1073,55 @@
       border-color: rgba(56, 189, 248, 0.5);
       color: #ffffff;
       box-shadow: 0 0 12px rgba(56, 189, 248, 0.3);
+    }
+
+    .live-score-val {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 5px;
+      white-space: nowrap;
+    }
+
+    .live-score-val .score-num {
+      font-size: 0.96rem;
+      font-weight: 800;
+      color: #ffffff;
+      min-width: 10px;
+      text-align: center;
+      line-height: 1;
+    }
+
+    .live-score-val .score-mid {
+      font-size: 0.76rem;
+      font-weight: 800;
+      letter-spacing: -0.01em;
+      line-height: 1;
+      padding: 0 1px;
+    }
+
+    .live-score-val .score-mid.live-min {
+      color: #00ff85;
+      text-shadow: 0 0 8px rgba(0, 255, 133, 0.5);
+    }
+
+    .live-score-val .score-mid.live-ht {
+      color: #facc15;
+      text-shadow: 0 0 6px rgba(250, 204, 21, 0.4);
+    }
+
+    .live-score-val .score-mid.live-ms {
+      color: var(--text-muted);
+      font-size: 0.72rem;
+      font-weight: 700;
+    }
+
+    .live-score-val .fixture-time-str {
+      font-size: 0.88rem;
+      font-weight: 800;
+      color: #bae6fd;
+      letter-spacing: 0.03em;
+      line-height: 1;
     }
 
     .live-score-display .odds-tooltip {
@@ -2466,47 +2429,47 @@
       return timeA.localeCompare(timeB);
     }
 
-    function renderMatchRow(m, isFav) {
-      let isLive = isMatchLive(m);
-      let isPlayed = isMatchPlayed(m);
-      let showBadge = isLive || isPlayed;
-
-      let badgeHtml = "";
-      let badgeClass = "fixture";
+    function formatLiveScoreHtml(m) {
+      const isLive = isMatchLive(m);
+      const isPlayed = isMatchPlayed(m);
 
       if (isLive) {
-        badgeClass = "playing";
+        const hSc = (m.home_score !== null && m.home_score !== undefined) ? m.home_score : 0;
+        const aSc = (m.away_score !== null && m.away_score !== undefined) ? m.away_score : 0;
         const p = (m.period || "").toString().toLowerCase().trim();
-        if (p === "half time" || p === "devre arası" || p === "ht") {
-          badgeHtml = "İY";
-        } else {
-          let minVal = m.minute ? `${m.minute}'` : "CANLI";
-          if (m.minute && m.minute_extra) {
-            minVal = `${m.minute}+${m.minute_extra}'`;
-          }
-          badgeHtml = minVal;
-        }
-      } else if (isPlayed) {
-        badgeClass = "played";
-        badgeHtml = "MS";
-      }
+        let midText = "CANLI";
+        let midClass = "live-min";
 
-      let scoreDisplay = "";
+        if (p === "half time" || p === "devre arası" || p === "ht") {
+          midText = "İY";
+          midClass = "live-ht";
+        } else if (m.minute) {
+          midText = m.minute_extra ? `${m.minute}+${m.minute_extra}'` : `${m.minute}'`;
+        }
+
+        return `<span class="score-num">${hSc}</span><span class="score-mid ${midClass}">${midText}</span><span class="score-num">${aSc}</span>`;
+      } else if (isPlayed) {
+        const hSc = (m.home_score !== null && m.home_score !== undefined) ? m.home_score : 0;
+        const aSc = (m.away_score !== null && m.away_score !== undefined) ? m.away_score : 0;
+        return `<span class="score-num">${hSc}</span><span class="score-mid live-ms">MS</span><span class="score-num">${aSc}</span>`;
+      } else {
+        const timeStr = getMatchLocalTime(m);
+        return `<span class="fixture-time-str">${timeStr}</span>`;
+      }
+    }
+
+    function renderMatchRow(m, isFav) {
+      const isLive = isMatchLive(m);
+      const isPlayed = isMatchPlayed(m);
+
       let scoreClass = "";
       if (isLive) {
-        const hSc = (m.home_score !== null && m.home_score !== undefined) ? m.home_score : 0;
-        const aSc = (m.away_score !== null && m.away_score !== undefined) ? m.away_score : 0;
-        scoreDisplay = `${hSc} : ${aSc}`;
         scoreClass = "live-active";
-      } else if (isPlayed) {
-        const hSc = (m.home_score !== null && m.home_score !== undefined) ? m.home_score : 0;
-        const aSc = (m.away_score !== null && m.away_score !== undefined) ? m.away_score : 0;
-        scoreDisplay = `${hSc} : ${aSc}`;
-        scoreClass = "";
-      } else {
-        scoreDisplay = getMatchLocalTime(m);
+      } else if (!isPlayed) {
         scoreClass = "fixture-time";
       }
+
+      const scoreHtml = formatLiveScoreHtml(m);
 
       // TV Kanalı ve Oranlar Tooltip (Varsa)
       let tooltipRows = [];
@@ -2570,24 +2533,14 @@
 
       return `
         <div class="live-match-item ${isFav ? 'is-fav' : ''}" id="live-card-${m.match_id}">
-          <!-- Favori Butonu -->
+          <!-- Favori Butonu (Sol) -->
           <button class="live-fav-btn ${favClass}" 
                   onclick="toggleFavoriteMatch('${m.match_id}', event)" 
                   title="${isFav ? 'Favorilerden Çıkar' : 'Favorilere Ekle'}">
             ${favIcon}
           </button>
 
-          <!-- Durum Rozeti (Başladıysa Dakika / Bittiyse MS / Başlamadıysa hizalama için 32px boşluk) -->
-          <div class="live-badge-wrapper ${showBadge ? '' : 'is-empty'}" 
-               id="live-badge-wrap-${m.match_id}"
-               tabindex="${showBadge ? '0' : '-1'}" 
-               onclick="${(showBadge && hasTooltip) ? 'toggleLiveBadgeTooltip(this, event)' : ''}" 
-               title="${showBadge ? tooltipTitle : ''}">
-            <span class="live-status-badge ${badgeClass}" id="live-badge-${m.match_id}">${badgeHtml}</span>
-            ${showBadge ? oddsHtml : ''}
-          </div>
-
-          <!-- Takımlar ve Skor / Saat (Başlamadıysa Saat Ortada) -->
+          <!-- Takımlar ve Ortadaki Skor/Dakika (gs 2 33' 1 fb) -->
           <div class="live-match-main">
             <div class="live-team home" title="${m.home_team}">${m.home_team}</div>
             <div class="live-score-display ${scoreClass}" 
@@ -2595,32 +2548,16 @@
                  tabindex="0"
                  onclick="${hasTooltip ? 'toggleLiveScoreTooltip(this, event)' : ''}"
                  title="${tooltipTitle}">
-              <span class="live-score-val" id="live-score-val-${m.match_id}">${scoreDisplay}</span>
+              <span class="live-score-val" id="live-score-val-${m.match_id}">${scoreHtml}</span>
               ${oddsHtml}
             </div>
             <div class="live-team away" title="${m.away_team}">${m.away_team}</div>
           </div>
+
+          <!-- Sağ Dengeleyici Boşluk (Simetri için) -->
+          <div class="live-fav-spacer" aria-hidden="true"></div>
         </div>
       `;
-    }
-
-    function toggleLiveBadgeTooltip(wrapper, event) {
-      if (event) {
-        event.stopPropagation();
-      }
-      if (!wrapper || !wrapper.querySelector(".odds-tooltip")) return;
-      const isOpen = wrapper.classList.contains("tooltip-open");
-      document.querySelectorAll(".live-badge-wrapper.tooltip-open, .live-score-display.tooltip-open").forEach(el => {
-        el.classList.remove("tooltip-open");
-      });
-      document.querySelectorAll(".live-match-item.has-open-tooltip").forEach(card => {
-        card.classList.remove("has-open-tooltip");
-      });
-      if (!isOpen) {
-        wrapper.classList.add("tooltip-open");
-        const card = wrapper.closest(".live-match-item");
-        if (card) card.classList.add("has-open-tooltip");
-      }
     }
 
     function toggleLiveScoreTooltip(scoreEl, event) {
@@ -2629,7 +2566,7 @@
       }
       if (!scoreEl || !scoreEl.querySelector(".odds-tooltip")) return;
       const isOpen = scoreEl.classList.contains("tooltip-open");
-      document.querySelectorAll(".live-badge-wrapper.tooltip-open, .live-score-display.tooltip-open").forEach(el => {
+      document.querySelectorAll(".live-score-display.tooltip-open").forEach(el => {
         el.classList.remove("tooltip-open");
       });
       document.querySelectorAll(".live-match-item.has-open-tooltip").forEach(card => {
@@ -2646,7 +2583,7 @@
       if (event) {
         event.stopPropagation();
       }
-      const wrapper = tooltipEl ? tooltipEl.closest(".live-badge-wrapper, .live-score-display") : null;
+      const wrapper = tooltipEl ? tooltipEl.closest(".live-score-display") : null;
       if (wrapper) {
         wrapper.classList.remove("tooltip-open");
       }
@@ -2657,8 +2594,8 @@
     }
 
     document.addEventListener("click", (e) => {
-      if (!e.target.closest(".live-badge-wrapper") && !e.target.closest(".live-score-display")) {
-        document.querySelectorAll(".live-badge-wrapper.tooltip-open, .live-score-display.tooltip-open").forEach(el => {
+      if (!e.target.closest(".live-score-display")) {
+        document.querySelectorAll(".live-score-display.tooltip-open").forEach(el => {
           el.classList.remove("tooltip-open");
         });
         document.querySelectorAll(".live-match-item.has-open-tooltip").forEach(card => {
@@ -2977,7 +2914,6 @@
 
       // Canlı Skor kartı DOM güncelle
       const scoreEl = document.getElementById(`live-score-${mid}`);
-      const badgeEl = document.getElementById(`live-badge-${mid}`);
       const htEl = document.getElementById(`live-ht-${mid}`);
 
       const isLive = isMatchLive(m);
@@ -2985,17 +2921,15 @@
 
       if (scoreEl) {
         const valEl = document.getElementById(`live-score-val-${mid}`);
-        if (isLive || isPlayed) {
-          const h = m.home_score !== null && m.home_score !== undefined ? m.home_score : 0;
-          const a = m.away_score !== null && m.away_score !== undefined ? m.away_score : 0;
-          if (valEl) valEl.innerText = `${h} : ${a}`;
-          else scoreEl.innerText = `${h} : ${a}`;
+        if (valEl) {
+          valEl.innerHTML = formatLiveScoreHtml(m);
+        }
+        if (isLive) {
           scoreEl.classList.remove("fixture-time");
-          if (isLive) scoreEl.classList.add("live-active");
-          else scoreEl.classList.remove("live-active");
+          scoreEl.classList.add("live-active");
+        } else if (isPlayed) {
+          scoreEl.classList.remove("fixture-time", "live-active");
         } else {
-          if (valEl) valEl.innerText = getMatchLocalTime(m);
-          else scoreEl.innerText = getMatchLocalTime(m);
           scoreEl.classList.add("fixture-time");
           scoreEl.classList.remove("live-active");
         }
@@ -3027,32 +2961,6 @@
           m._flashTimer = setTimeout(() => {
             if (scoreEl) scoreEl.classList.remove("goal-cancel-flash");
           }, 10000);
-        }
-      }
-
-      if (badgeEl) {
-        const badgeWrapper = badgeEl.closest(".live-badge-wrapper");
-        if (isLive) {
-          if (badgeWrapper) badgeWrapper.classList.remove("is-empty");
-          badgeEl.className = "live-status-badge playing";
-          const p = (m.period || "").toString().toLowerCase().trim();
-          if (p === "half time" || p === "devre arası" || p === "ht") {
-            badgeEl.innerText = "İY";
-          } else {
-            let minStr = m.minute ? `${m.minute}'` : "CANLI";
-            if (m.minute && m.minute_extra) {
-              minStr = `${m.minute}+${m.minute_extra}'`;
-            }
-            badgeEl.innerText = minStr;
-          }
-        } else if (isPlayed) {
-          if (badgeWrapper) badgeWrapper.classList.remove("is-empty");
-          badgeEl.className = "live-status-badge played";
-          badgeEl.innerText = "MS";
-        } else {
-          if (badgeWrapper) badgeWrapper.classList.add("is-empty");
-          badgeEl.className = "live-status-badge fixture";
-          badgeEl.innerText = "";
         }
       }
       if (htEl && (isLive || isPlayed) && m.half_time_home !== null && m.half_time_home !== undefined) {
@@ -3147,11 +3055,9 @@
             m.minute = newMin;
             m._minuteLastUpdated = now - (elapsedSeconds % 60) * 1000;
 
-            const badgeEl = document.getElementById(`live-badge-${m.match_id}`);
-            if (badgeEl && isMatchLive(m)) {
-              let minStr = `${m.minute}'`;
-              if (m.minute_extra) minStr = `${m.minute}+${m.minute_extra}'`;
-              badgeEl.innerText = minStr;
+            const valEl = document.getElementById(`live-score-val-${m.match_id}`);
+            if (valEl && isMatchLive(m)) {
+              valEl.innerHTML = formatLiveScoreHtml(m);
             }
           }
         }
