@@ -1519,9 +1519,9 @@
           <button class="filter-btn" id="filter-favorites" onclick="filterLiveStatus('favorites')">★ Favorilerim (<span id="count-fav">0</span>)</button>
         </div>
 
-        <div class="live-status-indicator">
+        <div class="live-status-indicator" style="display: none;">
           <span class="connection-dot" id="live-conn-dot"></span>
-          <span id="live-conn-status">Sahadan Canlı Yayını Bağlandı</span>
+          <span id="live-conn-status"></span>
         </div>
       </div>
 
@@ -1758,18 +1758,19 @@
         }
       });
 
-      renderLeagueDropdown();
-      loadCurrentLeague();
-      updateLiveCounts();
-      renderLiveScores();
-      initLiveSocket();
-      checkPushSubscription();
+      try { renderLeagueDropdown(); } catch (e) { console.error("renderLeagueDropdown error:", e); }
+      try { loadCurrentLeague(); } catch (e) { console.error("loadCurrentLeague error:", e); }
+      try { updateLiveCounts(); } catch (e) { console.error("updateLiveCounts error:", e); }
+      try { renderLiveScores(); } catch (e) { console.error("renderLiveScores error:", e); }
+      try { initLiveSocket(); } catch (e) { console.error("initLiveSocket error:", e); }
+      try { checkPushSubscription(); } catch (e) { console.error("checkPushSubscription error:", e); }
 
-      // Mobilde uygulamayı Canlı Skorlar ile aç (favori varsa favoriler, yoksa tüm maçlar)
+      // Mobilde uygulamayı Canlı Skorlar ile aç
       const isMobile = window.innerWidth <= 768 || /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent);
       if (isMobile) {
         switchMainView("livescores");
-        if (favoriteMatchIds && favoriteMatchIds.size > 0) {
+        const hasTodayFavorites = liveScoresList.some(m => favoriteMatchIds.has(String(m.match_id)));
+        if (hasTodayFavorites) {
           filterLiveStatus("favorites");
         } else {
           filterLiveStatus("all");
@@ -2778,9 +2779,7 @@
             checkAndFixFavOrder();
           }
           const connDot = document.getElementById("live-conn-dot");
-          const connStatus = document.getElementById("live-conn-status");
           if (connDot) connDot.className = "connection-dot";
-          if (connStatus) connStatus.innerText = "Canlı Skor Akışı Aktif (Sahadan Sync)";
         }
       } catch (err) {
         // Sessiz fallback
@@ -2790,7 +2789,6 @@
     // Sahadan Canlı WebSocket Entegrasyonu (Gerçek zamanlı Socket.io v2)
     function initLiveSocket() {
       const connDot = document.getElementById("live-conn-dot");
-      const connStatus = document.getElementById("live-conn-status");
 
       try {
         if (typeof io !== "undefined") {
@@ -2807,18 +2805,15 @@
 
           socket.on("connect", () => {
             if (connDot) connDot.className = "connection-dot";
-            if (connStatus) connStatus.innerText = "Sahadan Canlı Yayını Bağlandı";
             socket.emit("join-room", "soccer");
           });
 
           socket.on("disconnect", () => {
             if (connDot) connDot.className = "connection-dot disconnected";
-            if (connStatus) connStatus.innerText = "Canlı Bağlantı Yenileniyor...";
           });
 
           socket.on("reconnect", () => {
             if (connDot) connDot.className = "connection-dot";
-            if (connStatus) connStatus.innerText = "Sahadan Canlı Yayını Bağlandı";
             socket.emit("join-room", "soccer");
           });
 
@@ -2839,7 +2834,6 @@
           });
         } else {
           if (connDot) connDot.className = "connection-dot disconnected";
-          if (connStatus) connStatus.innerText = "Socket Kütüphanesi Yüklenemedi";
         }
       } catch (err) {
         console.warn("Socket.io bağlantı hatası:", err);
@@ -3120,8 +3114,15 @@
   </div>
 
   <script>
-    // PWA Service Worker kaydı
+    // PWA Service Worker kaydı ve otomatik anında güncelleme
     if ("serviceWorker" in navigator) {
+      let refreshing = false;
+      navigator.serviceWorker.addEventListener("controllerchange", () => {
+        if (!refreshing) {
+          refreshing = true;
+          window.location.reload();
+        }
+      });
       window.addEventListener("load", () => {
         navigator.serviceWorker.register("sw.js").then(reg => {
           reg.update().catch(() => {});

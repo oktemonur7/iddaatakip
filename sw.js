@@ -1,4 +1,4 @@
-const CACHE = "iddaatakip-v23";
+const CACHE = "iddaatakip-v24";
 const OFFLINE_ASSETS = [
   "./",
   "./index.html",
@@ -8,7 +8,14 @@ const OFFLINE_ASSETS = [
 
 self.addEventListener("install", e => {
   e.waitUntil(
-    caches.open(CACHE).then(c => c.addAll(OFFLINE_ASSETS))
+    caches.open(CACHE).then(async cache => {
+      for (const asset of OFFLINE_ASSETS) {
+        try {
+          const res = await fetch(asset, { cache: "reload" });
+          if (res.ok) await cache.put(asset, res);
+        } catch (err) {}
+      }
+    })
   );
   self.skipWaiting();
 });
@@ -23,17 +30,36 @@ self.addEventListener("activate", e => {
 });
 
 self.addEventListener("fetch", e => {
-  // Sadece GET isteklerini yakala
   if (e.request.method !== "GET") return;
+  const url = new URL(e.request.url);
+
+  // Sayfa istekleri (index.html / navigation): Her zaman önce taze ağı dene (Network-First)
+  if (e.request.mode === "navigate" || url.pathname.endsWith("/index.html") || url.pathname.endsWith("/")) {
+    e.respondWith(
+      fetch(e.request)
+        .then(res => {
+          if (res.ok) {
+            const clone = res.clone();
+            caches.open(CACHE).then(c => c.put(e.request, clone));
+          }
+          return res;
+        })
+        .catch(() => caches.match(e.request) || caches.match("./index.html") || caches.match("./"))
+    );
+    return;
+  }
+
+  // İkonlar ve statik dosyalar: Cache-First
   e.respondWith(
-    fetch(e.request)
-      .then(res => {
-        // Başarılı cevabı cache'e yaz
-        const clone = res.clone();
-        caches.open(CACHE).then(c => c.put(e.request, clone));
+    caches.match(e.request).then(cached => {
+      return cached || fetch(e.request).then(res => {
+        if (res.ok) {
+          const clone = res.clone();
+          caches.open(CACHE).then(c => c.put(e.request, clone));
+        }
         return res;
-      })
-      .catch(() => caches.match(e.request))
+      });
+    })
   );
 });
 
