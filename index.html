@@ -1093,30 +1093,34 @@
     }
 
     .live-score-val .score-mid {
-      font-size: 0.65rem;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.60rem;
       font-weight: 700;
-      letter-spacing: -0.01em;
+      letter-spacing: 0;
       line-height: 1;
       padding: 0 1px;
-      opacity: 0.95;
     }
 
     .live-score-val .score-mid.live-min {
+      font-size: 0.60rem;
       color: #00ff85;
       text-shadow: 0 0 6px rgba(0, 255, 133, 0.45);
     }
 
     .live-score-val .score-mid.live-ht {
       color: #facc15;
-      font-size: 0.63rem;
+      font-size: 0.55rem;
+      font-weight: 700;
       text-shadow: 0 0 5px rgba(250, 204, 21, 0.35);
     }
 
     .live-score-val .score-mid.live-ms {
       color: var(--text-muted);
-      font-size: 0.60rem;
-      font-weight: 600;
-      opacity: 0.85;
+      font-size: 0.55rem;
+      font-weight: 700;
+      opacity: 0.9;
     }
 
     .live-score-val .fixture-time-str {
@@ -2444,10 +2448,10 @@
         let midClass = "live-min";
 
         if (p === "half time" || p === "devre arası" || p === "ht") {
-          midText = "İY";
+          midText = "iY";
           midClass = "live-ht";
         } else if (m.minute) {
-          midText = m.minute_extra ? `${m.minute}+${m.minute_extra}'` : `${m.minute}'`;
+          midText = m.minute_extra ? `${m.minute}+${m.minute_extra}` : `${m.minute}`;
         }
 
         return `<span class="score-num">${hSc}</span><span class="score-mid ${midClass}">${midText}</span><span class="score-num">${aSc}</span>`;
