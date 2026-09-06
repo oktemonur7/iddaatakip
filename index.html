@@ -348,21 +348,25 @@
     .fixture-controls {
       display: flex;
       align-items: center;
-      gap: 8px;
+      gap: 5px;
+      flex-shrink: 0;
+      flex-wrap: nowrap;
     }
 
     .week-nav-btn {
-      width: 30px;
-      height: 30px;
+      width: 26px;
+      height: 26px;
       background: rgba(255, 255, 255, 0.08);
       border: 1px solid var(--card-border);
-      border-radius: 8px;
+      border-radius: 6px;
       color: #fff;
       display: flex;
       align-items: center;
       justify-content: center;
       cursor: pointer;
       transition: all 0.18s ease;
+      flex-shrink: 0;
+      padding: 0;
     }
 
     .week-nav-btn:hover:not(:disabled) {
@@ -381,13 +385,14 @@
       background: rgba(0, 0, 0, 0.45);
       color: #fff;
       border: 1px solid var(--card-border);
-      padding: 5px 12px;
-      border-radius: 8px;
-      font-size: 0.84rem;
+      padding: 3px 6px;
+      border-radius: 6px;
+      font-size: 0.78rem;
       font-family: inherit;
       outline: none;
       cursor: pointer;
       font-weight: 700;
+      max-width: 96px;
     }
 
     .week-selector option {
@@ -398,18 +403,19 @@
 
     /* BUGÜN TOGGLE */
     .today-toggle {
-      display: flex;
+      display: inline-flex;
       align-items: center;
-      gap: 7px;
+      gap: 5px;
       cursor: pointer;
       user-select: none;
-      margin-left: 6px;
+      margin-left: 2px;
+      flex-shrink: 0;
     }
     .today-toggle input[type="checkbox"] { display: none; }
     .today-toggle-slider {
       position: relative;
-      width: 34px;
-      height: 18px;
+      width: 28px;
+      height: 16px;
       background: rgba(255,255,255,0.12);
       border-radius: 999px;
       border: 1px solid rgba(255,255,255,0.18);
@@ -421,8 +427,8 @@
       position: absolute;
       top: 2px;
       left: 2px;
-      width: 12px;
-      height: 12px;
+      width: 10px;
+      height: 10px;
       border-radius: 50%;
       background: #aaa;
       transition: transform 0.2s, background 0.2s;
@@ -432,14 +438,15 @@
       border-color: #00ff85;
     }
     .today-toggle input:checked ~ .today-toggle-slider::after {
-      transform: translateX(16px);
+      transform: translateX(12px);
       background: #00ff85;
     }
     .today-toggle-text {
-      font-size: 0.8rem;
+      font-size: 0.76rem;
       font-weight: 700;
       color: rgba(255,255,255,0.6);
       letter-spacing: 0.02em;
+      white-space: nowrap;
     }
     .today-toggle input:checked ~ .today-toggle-text,
     .today-toggle:has(input:checked) .today-toggle-text {
@@ -457,11 +464,12 @@
     .match-row {
       background: rgba(255, 255, 255, 0.03);
       border: 1px solid rgba(255, 255, 255, 0.07);
-      border-radius: 12px;
-      padding: 10px 14px;
+      border-radius: 10px;
+      padding: 7px 10px;
       display: flex;
       align-items: center;
-      justify-content: space-between;
+      justify-content: flex-start;
+      gap: 8px;
       cursor: pointer;
       transition: all 0.22s cubic-bezier(0.4, 0, 0.2, 1);
       position: relative;
@@ -602,13 +610,20 @@
     }
 
     .match-meta-side {
-      font-size: 0.78rem;
+      font-size: 0.74rem;
       color: var(--text-muted);
-      width: 115px;
+      width: 62px;
+      min-width: 62px;
+      max-width: 62px;
       display: flex;
-      align-items: center;
-      gap: 6px;
-      font-weight: 600;
+      flex-direction: column;
+      align-items: flex-start;
+      justify-content: center;
+      gap: 2px;
+      font-weight: 700;
+      flex-shrink: 0;
+      line-height: 1.1;
+      white-space: nowrap;
     }
 
     .match-status-live {
@@ -617,22 +632,14 @@
       text-shadow: 0 0 8px rgba(248, 113, 113, 0.6);
     }
 
-    .match-status-ms {
-      font-size: 0.72rem;
-      font-weight: 700;
-      color: #94a3b8;
-      background: rgba(255, 255, 255, 0.08);
-      padding: 1px 5px;
-      border-radius: 4px;
-    }
-
     .match-teams-center {
       flex: 1;
       display: flex;
       align-items: center;
-      justify-content: center;
-      gap: 12px;
-      font-size: 0.92rem;
+      justify-content: flex-start;
+      gap: 8px;
+      font-size: 0.88rem;
+      min-width: 0;
     }
 
     .match-team {
@@ -905,8 +912,9 @@
     .live-match-item {
       display: flex;
       align-items: center;
-      justify-content: space-between;
-      padding: 5px 10px;
+      justify-content: flex-start;
+      gap: 6px;
+      padding: 5px 8px;
       background: rgba(255, 255, 255, 0.025);
       border: 1px solid rgba(255, 255, 255, 0.07);
       border-radius: 8px;
@@ -933,12 +941,7 @@
       justify-content: center;
       cursor: pointer;
       outline: none;
-    }
-
-    .live-badge-wrapper:hover,
-    .live-badge-wrapper:active,
-    .live-badge-wrapper:focus {
-      z-index: 500;
+      flex-shrink: 0;
     }
 
     .live-badge-wrapper .odds-tooltip {
@@ -947,14 +950,30 @@
       left: calc(100% + 8px);
       transform: translateY(-50%) translateX(-4px);
       z-index: 1000;
+      pointer-events: none;
     }
 
-    .live-badge-wrapper:hover .odds-tooltip,
-    .live-badge-wrapper:active .odds-tooltip,
-    .live-badge-wrapper:focus .odds-tooltip {
+    .live-badge-wrapper.tooltip-open {
+      z-index: 1000;
+    }
+
+    .live-badge-wrapper.tooltip-open .odds-tooltip {
       visibility: visible;
       opacity: 1;
       transform: translateY(-50%) translateX(0);
+      pointer-events: auto;
+    }
+
+    @media (hover: hover) and (pointer: fine) {
+      .live-badge-wrapper:hover {
+        z-index: 1000;
+      }
+      .live-badge-wrapper:hover .odds-tooltip {
+        visibility: visible;
+        opacity: 1;
+        transform: translateY(-50%) translateX(0);
+        pointer-events: auto;
+      }
     }
 
     .live-badge-wrapper .odds-tooltip::after {
@@ -1043,9 +1062,9 @@
       flex: 1;
       display: flex;
       align-items: center;
-      justify-content: center;
-      gap: 8px;
-      margin: 0 8px;
+      justify-content: flex-start;
+      gap: 6px;
+      margin: 0;
       min-width: 0;
     }
 
@@ -1243,6 +1262,16 @@
 
       .league-selector {
         font-size: 0.88rem;
+      }
+
+      .panel-header {
+        padding: 9px 10px;
+        gap: 6px;
+      }
+
+      .panel-title {
+        font-size: 0.85rem;
+        gap: 5px;
       }
     }
 
@@ -1546,7 +1575,7 @@
         <div class="panel-header">
           <div class="panel-title">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#38bdf8" stroke-width="2.5"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/></svg>
-            Fikstür & Maçlar
+            Fikstür
           </div>
 
           <div class="fixture-controls">
@@ -2093,18 +2122,18 @@
             // Sahadan API tarihi UTC olarak veriyor (date_time_utc: YYYY-MM-DD HH:MM:SS)
             // 'Z' ekleyerek UTC olduğunu belirtiyoruz, böylece tarayıcı otomatik olarak yerel saate (örn: +3 Türkiye) çevirir
             const d = new Date(m.date_time.replace(" ", "T") + "Z");
-            const datePart = d.toLocaleDateString("tr-TR", { day: "numeric", month: "short", weekday: "short" });
+            const dayName = d.toLocaleDateString("tr-TR", { weekday: "short" });
             const timePart = d.toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" });
-            dateStr = `${datePart} ${timePart}`;
+            dateStr = `${dayName} ${timePart}`;
           } catch(e) {
             dateStr = m.match_time || "";
           }
+        } else if (m.match_time) {
+          dateStr = m.match_time;
         }
 
         let statusBadgeHtml = "";
-        if (isMatchPlayed(m)) {
-          statusBadgeHtml = `<span class="match-status-ms">MS</span>`;
-        } else if (isMatchLive(m)) {
+        if (isMatchLive(m)) {
           statusBadgeHtml = `<span class="match-status-live">● CANLI</span>`;
         }
 
@@ -2453,7 +2482,7 @@
 
       let oddsHtml = "";
       if (tooltipRows.length > 0) {
-        oddsHtml = `<div class="odds-tooltip">${tooltipRows.join("")}</div>`;
+        oddsHtml = `<div class="odds-tooltip" onclick="closeLiveBadgeTooltip(this, event)">${tooltipRows.join("")}</div>`;
       }
 
       const favIcon = isFav ? "★" : "☆";
@@ -2469,7 +2498,7 @@
           </button>
 
           <!-- Durum Rozeti (Saat / Dakika / MS) ve Tooltip Alanı -->
-          <div class="live-badge-wrapper" tabindex="0" title="${(chs && chs.length) || m.odds ? 'Yayın & Oranlar' : ''}">
+          <div class="live-badge-wrapper" tabindex="0" onclick="toggleLiveBadgeTooltip(this, event)" title="${(chs && chs.length) || m.odds ? 'Yayın & Oranlar' : ''}">
             <span class="live-status-badge ${badgeClass}" id="live-badge-${m.match_id}">${badgeHtml}</span>
             ${oddsHtml}
           </div>
@@ -2485,6 +2514,38 @@
         </div>
       `;
     }
+
+    function toggleLiveBadgeTooltip(wrapper, event) {
+      if (event) {
+        event.stopPropagation();
+      }
+      if (!wrapper || !wrapper.querySelector(".odds-tooltip")) return;
+      const isOpen = wrapper.classList.contains("tooltip-open");
+      document.querySelectorAll(".live-badge-wrapper.tooltip-open").forEach(el => {
+        el.classList.remove("tooltip-open");
+      });
+      if (!isOpen) {
+        wrapper.classList.add("tooltip-open");
+      }
+    }
+
+    function closeLiveBadgeTooltip(tooltipEl, event) {
+      if (event) {
+        event.stopPropagation();
+      }
+      const wrapper = tooltipEl ? tooltipEl.closest(".live-badge-wrapper") : null;
+      if (wrapper) {
+        wrapper.classList.remove("tooltip-open");
+      }
+    }
+
+    document.addEventListener("click", (e) => {
+      if (!e.target.closest(".live-badge-wrapper")) {
+        document.querySelectorAll(".live-badge-wrapper.tooltip-open").forEach(el => {
+          el.classList.remove("tooltip-open");
+        });
+      }
+    });
 
     // Önce Sütun 1 dolsun, sonra Sütun 2'ye geçsin (Column-first sıralama)
     function renderMatchesTwoColumns(matches, isFav) {
@@ -3038,6 +3099,13 @@
       }).catch(err => console.warn("Favori senkronizasyonu:", err));
     }
 
+    function getActiveFavoriteCount() {
+      if (Array.isArray(liveScoresList) && liveScoresList.length > 0) {
+        return liveScoresList.filter(m => favoriteMatchIds.has(String(m.match_id))).length;
+      }
+      return favoriteMatchIds ? favoriteMatchIds.size : 0;
+    }
+
     function updatePushBadge(active, text) {
       const btn = document.getElementById("notif-toggle-btn");
       const statusText = document.getElementById("notif-status-text");
@@ -3061,7 +3129,7 @@
         testBtn.style.display = active ? "flex" : "none";
       }
       if (favCountEl) {
-        favCountEl.innerText = `${favoriteMatchIds.size} maç takip ediliyor`;
+        favCountEl.innerText = `${getActiveFavoriteCount()} maç takip ediliyor`;
       }
     }
 
@@ -3069,7 +3137,7 @@
       checkPushSubscription();
       const favCountEl = document.getElementById("notif-fav-count");
       if (favCountEl) {
-        favCountEl.innerText = `${favoriteMatchIds.size} maç takip ediliyor`;
+        favCountEl.innerText = `${getActiveFavoriteCount()} maç takip ediliyor`;
       }
     }
 
@@ -3216,7 +3284,7 @@
           </button>
         </div>
 
-        <div class="notif-server-section" style="margin-top: 14px;">
+        <div class="notif-server-section" style="margin-top: 14px; display: none;">
           <label class="notif-server-label">Push Sunucu Adresi (Render / Bulut):</label>
           <input type="text" class="notif-server-input" id="notif-server-url" placeholder="https://iddaatakip.onrender.com" onchange="savePushServerUrl(this.value)" />
           <span class="notif-hint">Render bulut sunucunuz varsayılan olarak ayarlıdır. Değiştirmenize gerek yoktur.</span>
