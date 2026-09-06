@@ -1,4 +1,4 @@
-const CACHE = "iddaatakip-v33";
+const CACHE = "iddaatakip-v34";
 const OFFLINE_ASSETS = [
   "./",
   "./index.html",
@@ -33,18 +33,42 @@ self.addEventListener("fetch", e => {
   if (e.request.method !== "GET") return;
   const url = new URL(e.request.url);
 
-  // Sayfa istekleri (index.html / navigation): Her zaman önce taze ağı dene (Network-First)
+  // Sayfa istekleri (index.html / navigation): Network-First, ancak ağ 2.5s içinde yanıt vermezse hemen önbellekten sun
   if (e.request.mode === "navigate" || url.pathname.endsWith("/index.html") || url.pathname.endsWith("/")) {
     e.respondWith(
-      fetch(e.request)
-        .then(res => {
-          if (res.ok) {
-            const clone = res.clone();
-            caches.open(CACHE).then(c => c.put(e.request, clone));
+      new Promise(resolve => {
+        let resolved = false;
+
+        fetch(e.request)
+          .then(res => {
+            if (res.ok) {
+              const clone = res.clone();
+              caches.open(CACHE).then(c => c.put(e.request, clone));
+            }
+            if (!resolved) {
+              resolved = true;
+              resolve(res);
+            }
+          })
+          .catch(async () => {
+            if (!resolved) {
+              resolved = true;
+              const cached = await caches.match(e.request) || await caches.match("./index.html") || await caches.match("./");
+              if (cached) resolve(cached);
+            }
+          });
+
+        // 2.5 saniye zaman aşımı: Ağ gecikirse anında önbelleği aç (30sn beyaz/yükleme ekranını önler)
+        setTimeout(async () => {
+          if (!resolved) {
+            const cached = await caches.match(e.request) || await caches.match("./index.html") || await caches.match("./");
+            if (cached) {
+              resolved = true;
+              resolve(cached);
+            }
           }
-          return res;
-        })
-        .catch(() => caches.match(e.request) || caches.match("./index.html") || caches.match("./"))
+        }, 2500);
+      })
     );
     return;
   }
