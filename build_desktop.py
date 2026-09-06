@@ -128,6 +128,7 @@ LEAGUES = [
 
 APP_DIR = os.path.dirname(os.path.abspath(__file__))
 CACHE_FILE = os.path.join(APP_DIR, "leagues_cache.json")
+GOALS_CACHE_FILE = os.path.join(APP_DIR, "all_goals_cache.json")
 DESKTOP_HTML = "/Users/onur/Desktop/futbol_ligleri.html"
 TEMPLATE_HTML = os.path.join(APP_DIR, "index.html")
 OUTPUT_HTML = os.path.join(APP_DIR, "dist", "index.html")  # GitHub Pages çıktısı
@@ -927,25 +928,47 @@ def build_desktop_html():
                         m["tv_channels"] = chs
                         matched_tv_fix += 1
     # Canlı ve tamamlanan maçların gollerini pre-fetch et (Hızlı açılması için)
+    goals_cache_dict = {}
+    if os.path.exists(GOALS_CACHE_FILE):
+        try:
+            with open(GOALS_CACHE_FILE, "r", encoding="utf-8") as gf:
+                goals_cache_dict = json.load(gf)
+        except Exception:
+            goals_cache_dict = {}
+
     scored_today_matches = []
     for tm in (today_live_matches or []):
         hs = tm.get("home_score")
         as_ = tm.get("away_score")
-        if ((hs is not None and hs > 0) or (as_ is not None and as_ > 0)) and tm.get("uuid"):
-            scored_today_matches.append(tm)
+        muuid = tm.get("uuid") or tm.get("match_uuid")
+        if ((hs is not None and hs > 0) or (as_ is not None and as_ > 0)) and muuid:
+            if muuid in goals_cache_dict and goals_cache_dict[muuid]:
+                tm["goals"] = goals_cache_dict[muuid]
+            else:
+                scored_today_matches.append(tm)
 
     if scored_today_matches:
         print(f"Gol olan {len(scored_today_matches)} güncel maç için gol bilgileri taranıyor...")
         def fetch_goals_for_tm(tm):
+            muuid = tm.get("uuid") or tm.get("match_uuid")
             try:
-                g = fetch_match_goals(tm.get("home_team", ""), tm.get("away_team", ""), tm.get("uuid"))
+                g = fetch_match_goals(tm.get("home_team", ""), tm.get("away_team", ""), muuid)
                 if g:
                     tm["goals"] = g
+                    goals_cache_dict[muuid] = g
             except Exception:
                 pass
         with ThreadPoolExecutor(max_workers=6) as executor:
             list(executor.map(fetch_goals_for_tm, scored_today_matches))
         print(f" ✓ Gol bilgileri başarıyla eşleştirildi.")
+
+    # Gol cache dosyasını kaydet
+    if goals_cache_dict:
+        try:
+            with open(GOALS_CACHE_FILE, "w", encoding="utf-8") as gf:
+                json.dump(goals_cache_dict, gf, ensure_ascii=False)
+        except Exception:
+            pass
 
     # Cache yaz
     with open(CACHE_FILE, "w", encoding="utf-8") as f:
@@ -958,6 +981,7 @@ def build_desktop_html():
         ],
         "default_league": "super-lig-tr",
         "live_scores_today": today_live_matches,
+        "all_goals_cache": goals_cache_dict,
         "data": cached_data
     }
 
