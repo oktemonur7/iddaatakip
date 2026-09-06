@@ -983,6 +983,8 @@
       cursor: pointer;
       outline: none;
       flex-shrink: 0;
+      width: 32px;
+      min-width: 32px;
     }
 
     .live-badge-wrapper .odds-tooltip {
@@ -1055,48 +1057,45 @@
       filter: drop-shadow(0 0 5px rgba(250, 204, 21, 0.7));
     }
 
-    /* Tek ve Net Durum Rozeti (Başlamadıysa Saat, Başladıysa Dakika, Bittiyse MS) */
+    /* Tek ve Net Durum Rozeti (Başlamadıysa boşluk, Başladıysa Dakika, Bittiyse MS) */
     .live-status-badge {
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      gap: 3px;
       font-family: 'JetBrains Mono', monospace;
-      font-size: 0.72rem;
+      font-size: 0.8rem;
       font-weight: 800;
-      padding: 2px 6px;
-      border-radius: 4px;
-      min-width: 46px;
+      width: 32px;
+      min-width: 32px;
       text-align: center;
       flex-shrink: 0;
+      background: transparent;
+      border: none;
+      box-shadow: none;
+      padding: 0;
     }
 
     .live-status-badge.playing {
-      background: rgba(0, 255, 133, 0.14);
       color: #00ff85;
-      border: 1px solid rgba(0, 255, 133, 0.4);
-      box-shadow: 0 0 10px rgba(0, 255, 133, 0.22);
-    }
-
-    .live-status-badge.playing .pulse-dot {
-      width: 5px;
-      height: 5px;
-      border-radius: 50%;
-      background: var(--pl-neon);
-      box-shadow: 0 0 6px var(--pl-neon);
-      animation: neon-pulse 1.2s infinite;
+      text-shadow: 0 0 8px rgba(0, 255, 133, 0.45);
+      background: transparent;
+      border: none;
+      box-shadow: none;
     }
 
     .live-status-badge.played {
-      background: rgba(255, 255, 255, 0.07);
       color: var(--text-muted);
-      border: 1px solid rgba(255, 255, 255, 0.1);
+      font-size: 0.74rem;
+      background: transparent;
+      border: none;
+      box-shadow: none;
     }
 
     .live-status-badge.fixture {
-      background: rgba(56, 189, 248, 0.1);
-      color: #bae6fd;
-      border: 1px solid rgba(56, 189, 248, 0.22);
+      color: transparent;
+      background: transparent;
+      border: none;
+      box-shadow: none;
     }
 
     .live-match-main {
@@ -2578,12 +2577,11 @@
             ${favIcon}
           </button>
 
-          <!-- Durum Rozeti (Başladıysa Dakika / Bittiyse MS) -->
-          <div class="live-badge-wrapper" 
+          <!-- Durum Rozeti (Başladıysa Dakika / Bittiyse MS / Başlamadıysa hizalama için 32px boşluk) -->
+          <div class="live-badge-wrapper ${showBadge ? '' : 'is-empty'}" 
                id="live-badge-wrap-${m.match_id}"
-               tabindex="0" 
-               style="${showBadge ? '' : 'display: none;'}"
-               onclick="${hasTooltip ? 'toggleLiveBadgeTooltip(this, event)' : ''}" 
+               tabindex="${showBadge ? '0' : '-1'}" 
+               onclick="${(showBadge && hasTooltip) ? 'toggleLiveBadgeTooltip(this, event)' : ''}" 
                title="${showBadge ? tooltipTitle : ''}">
             <span class="live-status-badge ${badgeClass}" id="live-badge-${m.match_id}">${badgeHtml}</span>
             ${showBadge ? oddsHtml : ''}
@@ -2881,12 +2879,10 @@
         let newHome = parseInt(update.fts_A, 10);
         const oldHome = (m.home_score !== null && m.home_score !== undefined && !isNaN(parseInt(m.home_score, 10))) ? parseInt(m.home_score, 10) : null;
 
-        // Jitter / Bayat Polling Koruması: WebSocket golü son 90s içinde geldiyse bayat polling 0-0'ı skoru ezmesin
+        // Jitter / Bayat Paket Koruması: Gol sonrası 120s (2 dk) boyunca dalgalanan veya bayat eski skorlar kabul edilmez
         if (oldHome !== null && newHome < oldHome) {
-          if (nowTs - lastGoalTime < 90000 && update._fromPolling) {
-            newHome = oldHome;
-          } else if (nowTs - lastGoalTime < 15000) {
-            newHome = oldHome; // 15 saniyelik anlık dalgalanmayı engelle
+          if (nowTs - lastGoalTime < 120000) {
+            newHome = oldHome; // 2 dakika boyunca anlık dalgalanmayı ve bayat senkronizasyonu engelle
           } else if (!isInitialSync) {
             goalCancelled = true;
           }
@@ -2905,12 +2901,10 @@
         let newAway = parseInt(update.fts_B, 10);
         const oldAway = (m.away_score !== null && m.away_score !== undefined && !isNaN(parseInt(m.away_score, 10))) ? parseInt(m.away_score, 10) : null;
 
-        // Jitter / Bayat Polling Koruması: WebSocket golü son 90s içinde geldiyse bayat polling 0-0'ı skoru ezmesin
+        // Jitter / Bayat Paket Koruması: Gol sonrası 120s (2 dk) boyunca dalgalanan veya bayat eski skorlar kabul edilmez
         if (oldAway !== null && newAway < oldAway) {
-          if (nowTs - lastGoalTime < 90000 && update._fromPolling) {
-            newAway = oldAway;
-          } else if (nowTs - lastGoalTime < 15000) {
-            newAway = oldAway;
+          if (nowTs - lastGoalTime < 120000) {
+            newAway = oldAway; // 2 dakika boyunca anlık dalgalanmayı ve bayat senkronizasyonu engelle
           } else if (!isInitialSync) {
             goalCancelled = true;
           }
@@ -3039,7 +3033,7 @@
       if (badgeEl) {
         const badgeWrapper = badgeEl.closest(".live-badge-wrapper");
         if (isLive) {
-          if (badgeWrapper) badgeWrapper.style.display = "inline-flex";
+          if (badgeWrapper) badgeWrapper.classList.remove("is-empty");
           badgeEl.className = "live-status-badge playing";
           const p = (m.period || "").toString().toLowerCase().trim();
           if (p === "half time" || p === "devre arası" || p === "ht") {
@@ -3052,11 +3046,11 @@
             badgeEl.innerText = minStr;
           }
         } else if (isPlayed) {
-          if (badgeWrapper) badgeWrapper.style.display = "inline-flex";
+          if (badgeWrapper) badgeWrapper.classList.remove("is-empty");
           badgeEl.className = "live-status-badge played";
           badgeEl.innerText = "MS";
         } else {
-          if (badgeWrapper) badgeWrapper.style.display = "none";
+          if (badgeWrapper) badgeWrapper.classList.add("is-empty");
           badgeEl.className = "live-status-badge fixture";
           badgeEl.innerText = "";
         }
@@ -3093,7 +3087,7 @@
     // Sahadan HTTP Canlı Senkronizasyon (WebSocket kopsa bile kesintisiz canlı skor)
     async function pollLiveScoresFromServer() {
       const serverBase = getPushServerUrl() || window.location.origin;
-      const endpoint = serverBase.replace(/\/+$/, "") + "/api/live-sync";
+      const endpoint = serverBase.replace(/\/+$/, "") + "/api/live-sync?_t=" + Date.now();
       try {
         const res = await fetch(endpoint, { cache: "no-store" });
         if (!res.ok) return;

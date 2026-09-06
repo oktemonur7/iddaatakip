@@ -282,18 +282,14 @@ def process_match_update(update, is_initial=False, is_from_full_sync=False):
     last_goal_time = m.get("last_goal_time", 0)
 
     if new_h is not None and m["home_score"] is not None and new_h < m["home_score"]:
-        # Eğer gol son 90 saniye içinde atılmışsa ve istek full_sync'ten geldiyse, veya son 15 sn içindeyse yoksay
-        if (now_ts - last_goal_time) < 90 and is_from_full_sync:
-            new_h = m["home_score"]
-        elif (now_ts - last_goal_time) < 15:
+        # Gol sonrası 120 saniye boyunca dalgalanma/bayat paket koruması (skor düşüşünü yoksay)
+        if (now_ts - last_goal_time) < 120:
             new_h = m["home_score"]
         else:
             is_home_cancel = True
 
     if new_a is not None and m["away_score"] is not None and new_a < m["away_score"]:
-        if (now_ts - last_goal_time) < 90 and is_from_full_sync:
-            new_a = m["away_score"]
-        elif (now_ts - last_goal_time) < 15:
+        if (now_ts - last_goal_time) < 120:
             new_a = m["away_score"]
         else:
             is_away_cancel = True
@@ -520,7 +516,7 @@ def sahadan_http_sync_worker():
                                             old_a = tracked.get("away_score")
                                             old_min = tracked.get("minute")
                                             last_gt = tracked.get("last_goal_time", 0)
-                                            if (now - last_gt) < 90:
+                                            if (now - last_gt) < 120:
                                                 if old_h is not None and (match_dict.get("fts_A") is None or int(match_dict.get("fts_A", 0)) < old_h):
                                                     match_dict["fts_A"] = old_h
                                                 if old_a is not None and (match_dict.get("fts_B") is None or int(match_dict.get("fts_B", 0)) < old_a):
@@ -560,10 +556,19 @@ def sahadan_http_sync_worker():
                         for item in changes:
                             mid = str(item.get("match_id") or item.get("id") or item.get("uuid") or "")
                             process_match_update(item, is_initial=False)
+                            tracked = live_matches_state.get(mid)
                             for existing in latest_matches_summary:
                                 if str(existing.get("id")) == mid or str(existing.get("uuid")) == mid:
-                                    if item.get("fts_A") is not None: existing["fts_A"] = item["fts_A"]
-                                    if item.get("fts_B") is not None: existing["fts_B"] = item["fts_B"]
+                                    if tracked and tracked.get("home_score") is not None:
+                                        existing["fts_A"] = tracked["home_score"]
+                                    elif item.get("fts_A") is not None:
+                                        existing["fts_A"] = item["fts_A"]
+
+                                    if tracked and tracked.get("away_score") is not None:
+                                        existing["fts_B"] = tracked["away_score"]
+                                    elif item.get("fts_B") is not None:
+                                        existing["fts_B"] = item["fts_B"]
+
                                     st = str(item.get("status") or "").strip()
                                     pr = str(item.get("period") or "").strip()
                                     is_end = st.lower() in ("played", "ms", "ft", "finished", "bitti") or pr.lower() in ("played", "ms", "ft", "finished", "full time", "fulltime", "maç bitti")
@@ -572,7 +577,11 @@ def sahadan_http_sync_worker():
                                     elif st:
                                         existing["status"] = st
                                     if pr: existing["period"] = pr
-                                    if item.get("minute") is not None: existing["minute"] = item["minute"]
+
+                                    if tracked and tracked.get("minute"):
+                                        existing["minute"] = tracked["minute"]
+                                    elif item.get("minute") is not None:
+                                        existing["minute"] = item["minute"]
                                     break
             except Exception:
                 pass
@@ -601,10 +610,19 @@ def start_socket_listener():
         for item in items:
             process_match_update(item, is_initial=False)
             mid = str(item.get("match_id") or item.get("id") or item.get("uuid") or "")
+            tracked = live_matches_state.get(mid)
             for existing in latest_matches_summary:
                 if str(existing.get("id")) == mid or str(existing.get("uuid")) == mid:
-                    if item.get("fts_A") is not None: existing["fts_A"] = item["fts_A"]
-                    if item.get("fts_B") is not None: existing["fts_B"] = item["fts_B"]
+                    if tracked and tracked.get("home_score") is not None:
+                        existing["fts_A"] = tracked["home_score"]
+                    elif item.get("fts_A") is not None:
+                        existing["fts_A"] = item["fts_A"]
+
+                    if tracked and tracked.get("away_score") is not None:
+                        existing["fts_B"] = tracked["away_score"]
+                    elif item.get("fts_B") is not None:
+                        existing["fts_B"] = item["fts_B"]
+
                     st = str(item.get("status") or "").strip()
                     pr = str(item.get("period") or "").strip()
                     is_end = st.lower() in ("played", "ms", "ft", "finished", "bitti") or pr.lower() in ("played", "ms", "ft", "finished", "full time", "fulltime", "maç bitti")
@@ -613,7 +631,11 @@ def start_socket_listener():
                     elif st:
                         existing["status"] = st
                     if pr: existing["period"] = pr
-                    if item.get("minute") is not None: existing["minute"] = item["minute"]
+
+                    if tracked and tracked.get("minute"):
+                        existing["minute"] = tracked["minute"]
+                    elif item.get("minute") is not None:
+                        existing["minute"] = item["minute"]
                     break
 
     while True:
