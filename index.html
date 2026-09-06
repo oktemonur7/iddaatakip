@@ -242,21 +242,20 @@
     .center { text-align: center; }
     .right { text-align: right; }
 
-    .rank-cell {
-      display: flex;
-      align-items: center;
-      gap: 7px;
-      font-weight: 700;
-      width: 32px;
-      color: #94a3b8;
+    .rank-col {
+      width: 24px;
+      padding-right: 2px !important;
+      text-align: center;
     }
 
-    .zone-indicator {
-      width: 4px;
-      height: 18px;
-      border-radius: 2px;
-      display: inline-block;
-      box-shadow: 0 0 8px currentColor;
+    .rank-num {
+      font-weight: 700;
+      color: #94a3b8;
+      font-size: 0.88rem;
+    }
+
+    .team-col {
+      padding-left: 4px !important;
     }
 
     .team-name {
@@ -769,22 +768,33 @@
     .live-filter-bar {
       display: flex;
       align-items: center;
-      justify-content: space-between;
-      flex-wrap: wrap;
-      gap: 8px;
       background: var(--card-bg);
       backdrop-filter: blur(16px);
       padding: 8px 14px;
       border-radius: 12px;
       border: 1px solid var(--card-border);
       box-shadow: 0 6px 20px rgba(0, 0, 0, 0.25);
+      width: 100%;
+      box-sizing: border-box;
     }
 
     .live-filter-group {
-      display: flex;
+      display: grid;
+      grid-template-columns: 1fr auto 1fr;
       align-items: center;
-      gap: 6px;
-      flex-wrap: wrap;
+      width: 100%;
+    }
+
+    #filter-all {
+      justify-self: start;
+    }
+
+    #filter-live {
+      justify-self: center;
+    }
+
+    #filter-favorites {
+      justify-self: end;
     }
 
     .filter-btn {
@@ -797,6 +807,7 @@
       font-weight: 700;
       cursor: pointer;
       transition: all 0.18s ease;
+      white-space: nowrap;
     }
 
     .filter-btn:hover {
@@ -809,6 +820,38 @@
       color: var(--pl-neon);
       border-color: var(--pl-neon);
       box-shadow: 0 0 10px rgba(0, 255, 133, 0.25);
+    }
+
+    /* FAVORİ BOŞ DURUM */
+    .fav-empty-state {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      padding: 42px 16px;
+      gap: 8px;
+      width: 100%;
+      box-sizing: border-box;
+    }
+
+    .fav-empty-title {
+      font-size: 0.98rem;
+      font-weight: 700;
+      color: #f1f5f9;
+    }
+
+    .fav-empty-desc {
+      font-size: 0.84rem;
+      color: #94a3b8;
+      max-width: 440px;
+      line-height: 1.45;
+    }
+
+    .fav-empty-note {
+      font-size: 0.76rem;
+      color: #64748b;
+      margin-top: 4px;
     }
 
     .live-status-indicator {
@@ -2008,8 +2051,8 @@
         <table>
           <thead>
             <tr>
-              <th style="width: 32px;">#</th>
-              <th>Takım</th>
+              <th class="rank-col">#</th>
+              <th class="team-col">Takım</th>
               <th class="center" title="Oynanan Maç">O</th>
               <th class="center" title="Galibiyet">G</th>
               <th class="center" title="Beraberlik">B</th>
@@ -2026,7 +2069,6 @@
 
       standings.forEach(row => {
         const teamId = row.team_id;
-        const zoneColor = row.zone?.color || 'transparent';
         const series = (row.serie || "").split("");
 
         let serieBadges = series.map(s => {
@@ -2042,13 +2084,10 @@
               data-team-id="${teamId}"
               onmouseenter="highlightMatchByTeam(${teamId}, this)"
               onmouseleave="unhighlightMatchByTeam(this)">
-            <td>
-              <div class="rank-cell">
-                <span class="zone-indicator" style="background-color: ${zoneColor};" title="${row.zone?.name || ''}"></span>
-                <span>${row.rank}</span>
-              </div>
+            <td class="rank-col">
+              <span class="rank-num">${row.rank}</span>
             </td>
-            <td>
+            <td class="team-col">
               <span class="team-name">${row.display_name || row.name}</span>
             </td>
             <td class="center">${row.played}</td>
@@ -2679,7 +2718,13 @@
 
       if (!filtered.length) {
         if (currentLiveFilter === "favorites") {
-          container.innerHTML = "<div class='loading-state'>⭐ Henüz favori maç eklemediniz.<br><span style='font-size:0.82rem; color:#94a3b8; display:inline-block; margin-top:6px;'>Hepsi sekmesinden takip etmek istediğiniz maçların yanındaki ★ simgesine dokunun.<br><span style='font-size:0.75rem; color:#64748b; margin-top:4px; display:inline-block;'>Favoriler listeniz her sabah 07:00'de otomatik sıfırlanır.</span></span></div>";
+          container.innerHTML = `
+            <div class="fav-empty-state">
+              <div class="fav-empty-title">⭐ Henüz favori maç eklemediniz.</div>
+              <div class="fav-empty-desc">Hepsi sekmesinden takip etmek istediğiniz maçların yanındaki ★ simgesine dokunun.</div>
+              <div class="fav-empty-note">Favoriler listeniz her sabah 07:00'de otomatik sıfırlanır.</div>
+            </div>
+          `;
         } else {
           container.innerHTML = "<div class='loading-state'>Seçilen kriterde maç bulunamadı.</div>";
         }
