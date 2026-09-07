@@ -3087,10 +3087,21 @@ var u,f,l,d=String.fromCharCode;t.exports={version:"2.1.2",encode:a,decode:h}},f
         }
       }
 
+      // Canlı maçta toplam skor önbellekteki gol sayısından fazlaysa önbellek geçersizdir (yeni gol atılmıştır)
+      const currentTotalScore = (matchObj && matchObj.home_score != null && matchObj.away_score != null)
+        ? (parseInt(matchObj.home_score, 10) || 0) + (parseInt(matchObj.away_score, 10) || 0)
+        : null;
+
       // 1. Memory / embedded cache check (Instant 0ms)
       if (uuid && GOALS_CLIENT_CACHE[uuid]) {
-        tooltip.innerHTML = formatGoalsHtml(GOALS_CLIENT_CACHE[uuid], homeTeam, awayTeam, canStream);
-        return;
+        const cachedGoals = GOALS_CLIENT_CACHE[uuid];
+        if (currentTotalScore === null || !canStream || cachedGoals.length >= currentTotalScore) {
+          tooltip.innerHTML = formatGoalsHtml(cachedGoals, homeTeam, awayTeam, canStream);
+          return;
+        } else {
+          // Önbellekteki gol sayısı skordan eksik kalmış, tazelemek için önbelleği sil
+          delete GOALS_CLIENT_CACHE[uuid];
+        }
       }
 
       // Check liveScoresList for pre-embedded goals by uuid, match_id or team names
@@ -3099,11 +3110,13 @@ var u,f,l,d=String.fromCharCode;t.exports={version:"2.1.2",encode:a,decode:h}},f
         (homeTeam && awayTeam && m.home_team === homeTeam && m.away_team === awayTeam)
       ) : null);
       if (preloadedMatch && Array.isArray(preloadedMatch.goals) && preloadedMatch.goals.length > 0) {
-        if (uuid) GOALS_CLIENT_CACHE[uuid] = preloadedMatch.goals;
-        if (preloadedMatch.uuid) GOALS_CLIENT_CACHE[preloadedMatch.uuid] = preloadedMatch.goals;
-        if (preloadedMatch.match_id != null) GOALS_CLIENT_CACHE[String(preloadedMatch.match_id)] = preloadedMatch.goals;
-        tooltip.innerHTML = formatGoalsHtml(preloadedMatch.goals, homeTeam, awayTeam, canStream);
-        return;
+        if (currentTotalScore === null || !canStream || preloadedMatch.goals.length >= currentTotalScore) {
+          if (uuid) GOALS_CLIENT_CACHE[uuid] = preloadedMatch.goals;
+          if (preloadedMatch.uuid) GOALS_CLIENT_CACHE[preloadedMatch.uuid] = preloadedMatch.goals;
+          if (preloadedMatch.match_id != null) GOALS_CLIENT_CACHE[String(preloadedMatch.match_id)] = preloadedMatch.goals;
+          tooltip.innerHTML = formatGoalsHtml(preloadedMatch.goals, homeTeam, awayTeam, canStream);
+          return;
+        }
       }
 
       // Check all_goals_cache global object if available
@@ -4086,6 +4099,19 @@ var u,f,l,d=String.fromCharCode;t.exports={version:"2.1.2",encode:a,decode:h}},f
           goalScored = false;
         } else {
           m._notifiedScores.add(currentScoreKey);
+        }
+      }
+
+      // Yeni gol olduysa veya skor değiştiyse eski gol önbelleğini sıfırla ve güncel golleri anında getir
+      if (scoreChanged || goalScored) {
+        const mUuidKey = m.uuid || m.match_uuid || (m.match_id != null ? String(m.match_id) : (m.id != null ? String(m.id) : ""));
+        if (mUuidKey) {
+          delete GOALS_CLIENT_CACHE[mUuidKey];
+          delete GOALS_CLIENT_CACHE[String(m.match_id)];
+          m.goals = [];
+          setTimeout(() => {
+            prefetchGoalsForMatch(mUuidKey, m.home_team, m.away_team);
+          }, 1000);
         }
       }
 
