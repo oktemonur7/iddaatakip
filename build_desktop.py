@@ -1041,10 +1041,15 @@ def build_desktop_html():
         as_ = tm.get("away_score")
         muuid = tm.get("uuid") or tm.get("match_uuid")
         if ((hs is not None and hs > 0) or (as_ is not None and as_ > 0)) and muuid:
-            if muuid in goals_cache_dict and goals_cache_dict[muuid]:
-                tm["goals"] = goals_cache_dict[muuid]
-            else:
+            total_score = (hs or 0) + (as_ or 0)
+            cached_goals = goals_cache_dict.get(muuid)
+            st = str(tm.get("status") or "").lower()
+            is_finished = st in ("played", "ms", "ft", "finished", "bitti")
+            # If match is currently ongoing, or if cached goals count doesn't match total score, fetch fresh!
+            if not is_finished or not cached_goals or len(cached_goals) != total_score:
                 scored_today_matches.append(tm)
+            else:
+                tm["goals"] = cached_goals
 
     if scored_today_matches:
         print(f"Gol olan {len(scored_today_matches)} güncel maç için gol bilgileri taranıyor...")
