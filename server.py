@@ -40,15 +40,18 @@ def to_sahadan_slug(text):
     text = re.sub(r'[^\w\s-]', '', text).strip().lower()
     return re.sub(r'[-\s]+', '-', text)
 
-def fetch_match_goals(home, away, uuid):
+def fetch_match_goals(home, away, uuid, min_goals=0):
     if not uuid:
         return []
     now = time.time()
     if uuid in MATCH_GOALS_CACHE:
         cached = MATCH_GOALS_CACHE[uuid]
-        # Finished or valid cache within 90 seconds
-        if cached.get("is_ft") or (now - cached.get("time", 0) < 90):
-            return cached.get("goals", [])
+        c_goals = cached.get("goals", [])
+        # Eğer beklenen en az gol sayısı (skor) belirtilmişse ve cache'deki gol sayısı eksikse cache'i geç
+        if min_goals <= 0 or len(c_goals) >= min_goals:
+            # Finished or valid cache within 90 seconds
+            if cached.get("is_ft") or (now - cached.get("time", 0) < 90):
+                return c_goals
 
     slug = f"{to_sahadan_slug(home)}-vs-{to_sahadan_slug(away)}"
     url = f"https://www.sahadan.com/mac/{slug}/{uuid}"
@@ -383,9 +386,10 @@ class PremierLeagueHandler(http.server.SimpleHTTPRequestHandler):
             uuid = query.get("uuid", [""])[0]
             home = query.get("home", [""])[0]
             away = query.get("away", [""])[0]
+            min_goals = int(query.get("min_goals", [0])[0] or 0)
             goals = []
             if uuid:
-                goals = fetch_match_goals(home, away, uuid)
+                goals = fetch_match_goals(home, away, uuid, min_goals=min_goals)
             self.send_response(200)
             self.send_header("Content-Type", "application/json; charset=utf-8")
             self.send_header("Access-Control-Allow-Origin", "*")
