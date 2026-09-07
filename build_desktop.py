@@ -1011,6 +1011,14 @@ def build_desktop_html():
                 if muuid and muuid in tv_cache_dict:
                     tm["tv_channels"] = tv_cache_dict[muuid]
 
+    # TV önbelleğini tüm haftalardaki maçlara bağla
+    for lid, ldata in cached_data.items():
+        for w in ldata.get("weeks", []):
+            for m in w.get("matches", []):
+                muuid = m.get("uuid")
+                if muuid and muuid in tv_cache_dict and not m.get("tv_channels"):
+                    m["tv_channels"] = tv_cache_dict[muuid]
+
     # TV önbelleğini diske kaydet
     if tv_cache_dict:
         try:
