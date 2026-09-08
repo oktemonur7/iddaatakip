@@ -148,7 +148,7 @@ def fetch_match_goals(home, away, uuid, min_goals=0):
         incomplete = (min_goals > 0 and len(goals) < min_goals) or (len(goals) > 0 and has_missing_scorer) or (not is_ft and len(goals) == 0 and min_goals > 0)
         MATCH_GOALS_CACHE[uuid] = {
             "goals": goals,
-            "time": now if not incomplete else (now - 10.5),  # Incomplete ise ~4.5 sn önbellek (Sahadan rate-limit koruması)
+            "time": now if not incomplete else (now - 10),  # Incomplete ise 5 sn önbellek (Sahadan rate-limit koruması)
             "is_ft": is_ft
         }
         return goals
