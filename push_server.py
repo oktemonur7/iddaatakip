@@ -864,7 +864,6 @@ class RequestHandler(http.server.SimpleHTTPRequestHandler):
             if player_html:
                 self.send_response(200)
                 self.send_header("Content-Type", "text/html; charset=utf-8")
-                self.send_header("Access-Control-Allow-Origin", "*")
                 self.send_header("Cache-Control", "no-cache, no-store, must-revalidate")
                 self.end_headers()
                 self.wfile.write(player_html.encode("utf-8"))
@@ -892,7 +891,6 @@ class RequestHandler(http.server.SimpleHTTPRequestHandler):
                     print("Error resolving stream embed:", e)
             self.send_response(200)
             self.send_header("Content-Type", "application/json; charset=utf-8")
-            self.send_header("Access-Control-Allow-Origin", "*")
             self.send_header("Cache-Control", "no-cache, no-store, must-revalidate")
             self.end_headers()
             self.wfile.write(json.dumps({"success": bool(embed_url), "embed_url": embed_url}).encode("utf-8"))
@@ -910,7 +908,6 @@ class RequestHandler(http.server.SimpleHTTPRequestHandler):
                 goals = fetch_match_goals(home, away, uuid, min_goals=min_goals)
             self.send_response(200)
             self.send_header("Content-Type", "application/json; charset=utf-8")
-            self.send_header("Access-Control-Allow-Origin", "*")
             self.send_header("Cache-Control", "no-cache, no-store, must-revalidate")
             self.end_headers()
             self.wfile.write(json.dumps({"success": True, "goals": goals}, ensure_ascii=False).encode("utf-8"))
