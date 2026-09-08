@@ -2948,13 +2948,27 @@ var u,f,l,d=String.fromCharCode;t.exports={version:"2.1.2",encode:a,decode:h}},f
           const res = await fetch(`${baseUrl}/api/match-goals?uuid=${encodeURIComponent(uuid)}&home=${encodeURIComponent(homeTeam||'')}&away=${encodeURIComponent(awayTeam||'')}&min_goals=${expectedGoals}`);
           const data = await res.json();
           if (data.success && Array.isArray(data.goals) && data.goals.length >= expectedGoals) {
-            // Artık tam veri geldi, önbelleği güncelle ve tooltip'i yenile
+            // Tam veri geldi: client önbelleğini güncelle
             GOALS_CLIENT_CACHE[uuid] = data.goals;
             delete GOALS_PENDING_RETRY[uuid];
-            // Açık tooltip varsa hemen güncelle
-            const scoreEl = document.querySelector(`[data-uuid="${uuid}"] .live-score-box, [data-match-uuid="${uuid}"] .live-score-box`);
-            if (scoreEl && scoreEl.querySelector('.odds-tooltip')) {
-              scoreEl.querySelector('.odds-tooltip').innerHTML = formatGoalsHtml(data.goals, homeTeam, awayTeam, false);
+
+            // liveScoresList'teki ilgili maç objesini de güncelle (re-render anında doğru gözüksün)
+            if (Array.isArray(liveScoresList)) {
+              const lm = liveScoresList.find(m =>
+                m.uuid === uuid || m.match_uuid === uuid ||
+                (m.match_id != null && String(m.match_id) === uuid) ||
+                (m.id != null && String(m.id) === uuid)
+              );
+              if (lm) {
+                lm.goals = data.goals;
+                // Tooltip DOM'unu match_id üzerinden bul ve anında güncelle
+                const scoreEl = document.getElementById(`live-score-${lm.match_id}`);
+                const tooltipEl = scoreEl && scoreEl.querySelector('.odds-tooltip');
+                if (tooltipEl) {
+                  const isLive = lm.status && lm.status.toLowerCase().includes('playing');
+                  tooltipEl.innerHTML = formatGoalsHtml(data.goals, homeTeam, awayTeam, isLive);
+                }
+              }
             }
           } else if (GOALS_PENDING_RETRY[uuid]) {
             // Hâlâ eksik, 15 sn sonra tekrar dene
