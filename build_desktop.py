@@ -970,9 +970,13 @@ def build_desktop_html():
         except Exception:
             tv_cache_dict = {}
 
-    # TV kanalı henüz bulunamamış güncel aktif hafta maçlarını tespit et
+    # TV kanalı henüz bulunamamış güncel aktif hafta maçlarını tespit et (Öncelikle Şampiyonlar Ligi, Avrupa Kupaları ve Majör Ligler)
+    priority_order = ["sampiyonlar-ligi", "avrupa-ligi", "konferans-ligi", "trendyol-super-lig", "premier-lig-en", "laliga", "serie-a", "bundesliga", "ligue-1"]
+    ordered_lids = [lid for lid in priority_order if lid in cached_data] + [lid for lid in cached_data if lid not in priority_order]
+
     matches_needing_tv = []
-    for lid, ldata in cached_data.items():
+    for lid in ordered_lids:
+        ldata = cached_data[lid]
         curr_idx = ldata.get("current_week_index", 0)
         weeks = ldata.get("weeks", [])
         # Aktif hafta ve bir sonraki haftadaki başlanmamış maçları tara
@@ -997,9 +1001,11 @@ def build_desktop_html():
                 if chs:
                     m["tv_channels"] = chs
                     tv_cache_dict[muuid] = chs
+                else:
+                    tv_cache_dict[muuid] = []
             except Exception:
                 pass
-        with ThreadPoolExecutor(max_workers=8) as executor:
+        with ThreadPoolExecutor(max_workers=12) as executor:
             list(executor.map(fetch_tv_for_m, matches_needing_tv))
         print(" ✓ Fikstür maçları için TV yayın kanalları başarıyla tarandı.")
 
