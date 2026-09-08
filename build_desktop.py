@@ -487,13 +487,19 @@ def fetch_match_goals(home, away, uuid):
             if t in ('G', 'PG', 'OG'):
                 scorer = ev.get('scorer', {}) or {}
                 assist = ev.get('assist', {}) or {}
+                s_name = scorer.get('name') or scorer.get('display_name') or ''
+                if str(s_name).strip().lower() in ('bilinmiyor', 'unknown', 'none', 'null'):
+                    s_name = ''
+                a_name = assist.get('name') or assist.get('display_name') or ''
+                if str(a_name).strip().lower() in ('bilinmiyor', 'unknown', 'none', 'null'):
+                    a_name = ''
                 goals.append({
                     'type': t,
                     'minute': ev.get('minute'),
                     'extra_min': ev.get('minute_extra'),
                     'team': ev.get('team'),
-                    'scorer': scorer.get('name') or scorer.get('display_name') or 'Bilinmiyor',
-                    'assist': assist.get('name') or assist.get('display_name') or '',
+                    'scorer': s_name,
+                    'assist': a_name,
                     'score_A': ev.get('score_A'),
                     'score_B': ev.get('score_B')
                 })
@@ -1051,8 +1057,9 @@ def build_desktop_html():
             cached_goals = goals_cache_dict.get(muuid)
             st = str(tm.get("status") or "").lower()
             is_finished = st in ("played", "ms", "ft", "finished", "bitti")
-            # If match is currently ongoing, or if cached goals count doesn't match total score, fetch fresh!
-            if not is_finished or not cached_goals or len(cached_goals) != total_score:
+            # If match is currently ongoing, or if cached goals count doesn't match total score, or any scorer is missing, fetch fresh!
+            has_missing = any(not g.get('scorer') for g in (cached_goals or []))
+            if not is_finished or not cached_goals or len(cached_goals) != total_score or has_missing:
                 scored_today_matches.append(tm)
             else:
                 tm["goals"] = cached_goals

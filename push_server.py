@@ -52,7 +52,8 @@ def fetch_match_goals(home, away, uuid, min_goals=0):
     if uuid in MATCH_GOALS_CACHE:
         cached = MATCH_GOALS_CACHE[uuid]
         c_goals = cached.get("goals", [])
-        if min_goals <= 0 or len(c_goals) >= min_goals:
+        has_missing_scorer = any(not g.get('scorer') for g in c_goals)
+        if not has_missing_scorer and (min_goals <= 0 or len(c_goals) >= min_goals):
             if cached.get("is_ft") or (now - cached.get("time", 0) < 60):
                 return c_goals
 
@@ -118,13 +119,19 @@ def fetch_match_goals(home, away, uuid, min_goals=0):
             if t in ('G', 'PG', 'OG'):
                 scorer = ev.get('scorer', {}) or {}
                 assist = ev.get('assist', {}) or {}
+                scorer_raw = scorer.get('name') or scorer.get('display_name') or ''
+                if str(scorer_raw).strip().lower() in ('bilinmiyor', 'unknown', 'none', 'null'):
+                    scorer_raw = ''
+                assist_raw = assist.get('name') or assist.get('display_name') or ''
+                if str(assist_raw).strip().lower() in ('bilinmiyor', 'unknown', 'none', 'null'):
+                    assist_raw = ''
                 goals.append({
                     'type': t,
                     'minute': ev.get('minute'),
                     'extra_min': ev.get('minute_extra'),
                     'team': ev.get('team'),
-                    'scorer': scorer.get('name') or scorer.get('display_name') or 'Bilinmiyor',
-                    'assist': assist.get('name') or assist.get('display_name') or '',
+                    'scorer': scorer_raw,
+                    'assist': assist_raw,
                     'score_A': ev.get('score_A'),
                     'score_B': ev.get('score_B')
                 })
@@ -135,13 +142,12 @@ def fetch_match_goals(home, away, uuid, min_goals=0):
             if status_val in ("played", "ms", "ft", "finished"):
                 is_ft = True
 
-        # Eğer beklenen gol sayısına ulaşılamadıysa (Sahadan henüz güncellemedi),
-        # sonucu çok kısa süre (10 sn) önbellekle ki bir sonraki hover hızlıca tekrar denesin.
-        # Tam gol sayısına ulaşıldıysa normal 60 sn önbellekle.
-        incomplete = (min_goals > 0 and len(goals) < min_goals)
+        # Gol sayısı beklenen skordan azsa VEYA golcülerden biri henüz girilmemişse incomplete kabul et
+        has_missing_scorer = any(not g.get('scorer') for g in goals)
+        incomplete = (min_goals > 0 and len(goals) < min_goals) or (len(goals) > 0 and has_missing_scorer) or (not is_ft and len(goals) == 0 and min_goals > 0)
         MATCH_GOALS_CACHE[uuid] = {
             "goals": goals,
-            "time": now if not incomplete else (now - 57),  # 3 sn TTL for incomplete (anında taze veri çekebilsin)
+            "time": now if not incomplete else (now - 58),  # Incomplete ise sadece 2 sn önbellek
             "is_ft": is_ft
         }
         return goals
