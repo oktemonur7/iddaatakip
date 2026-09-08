@@ -141,7 +141,7 @@ def fetch_match_goals(home, away, uuid, min_goals=0):
         incomplete = (min_goals > 0 and len(goals) < min_goals)
         MATCH_GOALS_CACHE[uuid] = {
             "goals": goals,
-            "time": now if not incomplete else (now - 50),  # 10 sn TTL for incomplete
+            "time": now if not incomplete else (now - 57),  # 3 sn TTL for incomplete (anında taze veri çekebilsin)
             "is_ft": is_ft
         }
         return goals
