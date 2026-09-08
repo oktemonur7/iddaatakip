@@ -29,7 +29,7 @@ try:
                 MATCH_GOALS_CACHE[_u] = {
                     "goals": _g,
                     "time": time.time(),
-                    "is_ft": True
+                    "is_ft": False
                 }
         print(f"Loaded {len(MATCH_GOALS_CACHE)} matches into MATCH_GOALS_CACHE.")
 except Exception as _e:
@@ -54,11 +54,12 @@ def fetch_match_goals(home, away, uuid, min_goals=0):
         c_goals = cached.get("goals", [])
         has_missing_scorer = any(not g.get('scorer') for g in c_goals)
         if not has_missing_scorer and (min_goals <= 0 or len(c_goals) >= min_goals):
-            if cached.get("is_ft") or (now - cached.get("time", 0) < 60):
+            if cached.get("is_ft") or (now - cached.get("time", 0) < 15):
                 return c_goals
 
     slug = f"{to_sahadan_slug(home)}-vs-{to_sahadan_slug(away)}"
-    url = f"https://www.sahadan.com/mac/{slug}/{uuid}"
+    ts_bust = int(now * 1000)
+    url = f"https://www.sahadan.com/mac/{slug}/{uuid}?_t={ts_bust}"
     try:
         req = urllib.request.Request(url, headers={
             "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
@@ -147,7 +148,7 @@ def fetch_match_goals(home, away, uuid, min_goals=0):
         incomplete = (min_goals > 0 and len(goals) < min_goals) or (len(goals) > 0 and has_missing_scorer) or (not is_ft and len(goals) == 0 and min_goals > 0)
         MATCH_GOALS_CACHE[uuid] = {
             "goals": goals,
-            "time": now if not incomplete else (now - 58),  # Incomplete ise sadece 2 sn önbellek
+            "time": now if not incomplete else (now - 12),  # Incomplete ise 3 sn önbellek
             "is_ft": is_ft
         }
         return goals
@@ -1074,7 +1075,11 @@ if __name__ == "__main__":
 
     log_event(f"🚀 İddaa Takip Web Push Sunucusu Başlatıldı (Port: {PORT})")
 
-    server = socketserver.TCPServer(("", PORT), RequestHandler)
+    class ThreadedTCPServer(socketserver.ThreadingMixIn, socketserver.TCPServer):
+        daemon_threads = True
+        allow_reuse_address = True
+
+    server = ThreadedTCPServer(("", PORT), RequestHandler)
     try:
         server.serve_forever()
     except KeyboardInterrupt:
