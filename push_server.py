@@ -7,6 +7,8 @@ import threading
 import time
 import datetime
 import urllib.request
+import re
+import unicodedata
 import socketio
 from pywebpush import webpush, WebPushException
 
@@ -32,8 +34,6 @@ try:
         print(f"Loaded {len(MATCH_GOALS_CACHE)} matches into MATCH_GOALS_CACHE.")
 except Exception as _e:
     print("Could not preload all_goals_cache.json:", _e)
-
-import unicodedata
 
 def to_sahadan_slug(text):
     if not text:
