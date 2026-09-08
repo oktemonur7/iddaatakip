@@ -587,6 +587,23 @@ def check_and_reset_subscribers_at_7am():
         except Exception as e:
             log_event(f"Sabah 07:00 sıfırlama hatası: {e}")
 
+def get_match_period_rank(period_str, status_str=""):
+    p = str(period_str or "").lower().strip()
+    s = str(status_str or "").lower().strip()
+    if s in ("played", "ms", "ft", "finished", "bitti") or p in ("played", "ms", "ft", "finished", "full time", "fulltime", "maç bitti"):
+        return 6
+    if "penalt" in p:
+        return 5
+    if "extra" in p or "uzatma" in p or p == "et":
+        return 4
+    if "second" in p or "2" in p:
+        return 3
+    if p in ("half time", "devre arası", "ht", "iy"):
+        return 2
+    if "first" in p or "1" in p:
+        return 1
+    return 0
+
 def sahadan_http_sync_worker():
     global is_initial_sync, latest_matches_summary
     log_event("🔄 Sahadan Canlı HTTP Senkronizasyon Servisi Başlatıldı.")
@@ -713,11 +730,15 @@ def sahadan_http_sync_worker():
                                     st = str(item.get("status") or "").strip()
                                     pr = str(item.get("period") or "").strip()
                                     is_end = st.lower() in ("played", "ms", "ft", "finished", "bitti") or pr.lower() in ("played", "ms", "ft", "finished", "full time", "fulltime", "maç bitti")
-                                    if is_end:
-                                        existing["status"] = "Played"
-                                    elif st:
-                                        existing["status"] = st
-                                    if pr: existing["period"] = pr
+                                    cur_rank = get_match_period_rank(existing.get("period"), existing.get("status"))
+                                    new_rank = get_match_period_rank(pr, st)
+                                    is_regression = (new_rank < cur_rank and cur_rank >= 2)
+                                    if not is_regression:
+                                        if is_end:
+                                            existing["status"] = "Played"
+                                        elif st:
+                                            existing["status"] = st
+                                        if pr: existing["period"] = pr
 
                                     if tracked and tracked.get("minute"):
                                         existing["minute"] = tracked["minute"]
@@ -767,11 +788,15 @@ def start_socket_listener():
                     st = str(item.get("status") or "").strip()
                     pr = str(item.get("period") or "").strip()
                     is_end = st.lower() in ("played", "ms", "ft", "finished", "bitti") or pr.lower() in ("played", "ms", "ft", "finished", "full time", "fulltime", "maç bitti")
-                    if is_end:
-                        existing["status"] = "Played"
-                    elif st:
-                        existing["status"] = st
-                    if pr: existing["period"] = pr
+                    cur_rank = get_match_period_rank(existing.get("period"), existing.get("status"))
+                    new_rank = get_match_period_rank(pr, st)
+                    is_regression = (new_rank < cur_rank and cur_rank >= 2)
+                    if not is_regression:
+                        if is_end:
+                            existing["status"] = "Played"
+                        elif st:
+                            existing["status"] = st
+                        if pr: existing["period"] = pr
 
                     if tracked and tracked.get("minute"):
                         existing["minute"] = tracked["minute"]
