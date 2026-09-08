@@ -15,6 +15,135 @@ SUBSCRIPTIONS_FILE = "subscriptions.json"
 VAPID_FILE = "vapid_keys.json"
 CACHE_FILE = "leagues_cache.json"
 STREAM_PLAYER_CACHE = {}
+MATCH_GOALS_CACHE = {}
+
+# Preload persisted match goals cache if available
+try:
+    _cache_file = os.path.join(os.path.dirname(__file__), "all_goals_cache.json")
+    if os.path.exists(_cache_file):
+        with open(_cache_file, "r", encoding="utf-8") as _f:
+            _loaded = json.load(_f)
+            for _u, _g in _loaded.items():
+                MATCH_GOALS_CACHE[_u] = {
+                    "goals": _g,
+                    "time": time.time(),
+                    "is_ft": True
+                }
+        print(f"Loaded {len(MATCH_GOALS_CACHE)} matches into MATCH_GOALS_CACHE.")
+except Exception as _e:
+    print("Could not preload all_goals_cache.json:", _e)
+
+import unicodedata
+
+def to_sahadan_slug(text):
+    if not text:
+        return ""
+    tr_map = {'ı':'i', 'I':'i', 'İ':'i', 'ş':'s', 'Ş':'s', 'ğ':'g', 'Ğ':'g', 'ü':'u', 'Ü':'u', 'ö':'o', 'Ö':'o', 'ç':'c', 'Ç':'c'}
+    for k, v in tr_map.items():
+        text = text.replace(k, v)
+    text = unicodedata.normalize('NFKD', text).encode('ascii', 'ignore').decode('utf-8')
+    text = re.sub(r'[^\w\s-]', '', text).strip().lower()
+    return re.sub(r'[-\s]+', '-', text)
+
+def fetch_match_goals(home, away, uuid, min_goals=0):
+    if not uuid:
+        return []
+    now = time.time()
+    if uuid in MATCH_GOALS_CACHE:
+        cached = MATCH_GOALS_CACHE[uuid]
+        c_goals = cached.get("goals", [])
+        if min_goals <= 0 or len(c_goals) >= min_goals:
+            if cached.get("is_ft") or (now - cached.get("time", 0) < 60):
+                return c_goals
+
+    slug = f"{to_sahadan_slug(home)}-vs-{to_sahadan_slug(away)}"
+    url = f"https://www.sahadan.com/mac/{slug}/{uuid}"
+    try:
+        req = urllib.request.Request(url, headers={
+            "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            "Accept-Language": "tr-TR,tr;q=0.9",
+            "Cache-Control": "no-cache"
+        })
+        html = urllib.request.urlopen(req, timeout=8).read().decode("utf-8")
+        m = re.search(r'<script[^>]*id=\"__NUXT_DATA__\"[^>]*>(.*?)</script>', html)
+        if not m:
+            return []
+        data = json.loads(m.group(1))
+
+        memo = {}
+        def deep_resolve(val, depth=0):
+            if depth > 20: return val
+            if isinstance(val, int) and 0 <= val < len(data):
+                if val in memo: return memo[val]
+                raw = data[val]
+                if isinstance(raw, list) and len(raw) == 2 and raw[0] in ('ShallowReactive', 'Reactive', 'Set', 'Map'):
+                    res = deep_resolve(raw[1], depth + 1)
+                    memo[val] = res
+                    return res
+                if isinstance(raw, dict):
+                    res = {}
+                    memo[val] = res
+                    for k, v in raw.items(): res[k] = deep_resolve(v, depth + 1)
+                    return res
+                if isinstance(raw, list):
+                    res = []
+                    memo[val] = res
+                    for item in raw: res.append(deep_resolve(item, depth + 1))
+                    return res
+                return raw
+            elif isinstance(val, dict):
+                return {k: deep_resolve(v, depth + 1) for k, v in val.items()}
+            elif isinstance(val, list):
+                return [deep_resolve(v, depth + 1) for v in val]
+            return val
+
+        resolved = deep_resolve(2)
+        events = []
+        def find_key_events(obj, depth=0):
+            if depth > 10: return
+            if isinstance(obj, dict):
+                if 'key_events' in obj and isinstance(obj['key_events'], list):
+                    events.extend(obj['key_events'])
+                    return
+                for v in obj.values():
+                    find_key_events(v, depth + 1)
+            elif isinstance(obj, list):
+                for item in obj:
+                    find_key_events(item, depth + 1)
+
+        find_key_events(resolved)
+        goals = []
+        for ev in events:
+            t = ev.get('type')
+            if t in ('G', 'PG', 'OG'):
+                scorer = ev.get('scorer', {}) or {}
+                assist = ev.get('assist', {}) or {}
+                goals.append({
+                    'type': t,
+                    'minute': ev.get('minute'),
+                    'extra_min': ev.get('minute_extra'),
+                    'team': ev.get('team'),
+                    'scorer': scorer.get('name') or scorer.get('display_name') or 'Bilinmiyor',
+                    'assist': assist.get('name') or assist.get('display_name') or '',
+                    'score_A': ev.get('score_A'),
+                    'score_B': ev.get('score_B')
+                })
+
+        is_ft = False
+        if isinstance(resolved, dict):
+            status_val = str(resolved.get("status") or "").lower()
+            if status_val in ("played", "ms", "ft", "finished"):
+                is_ft = True
+
+        MATCH_GOALS_CACHE[uuid] = {
+            "goals": goals,
+            "time": now,
+            "is_ft": is_ft
+        }
+        return goals
+    except Exception as e:
+        print(f"Error fetching match goals for {slug} ({uuid}):", e)
+        return []
 
 last_push_logs = []
 
@@ -756,6 +885,24 @@ class RequestHandler(http.server.SimpleHTTPRequestHandler):
             self.send_header("Cache-Control", "no-cache, no-store, must-revalidate")
             self.end_headers()
             self.wfile.write(json.dumps({"success": bool(embed_url), "embed_url": embed_url}).encode("utf-8"))
+            return
+
+        if self.path.startswith("/api/match-goals"):
+            from urllib.parse import urlparse, parse_qs
+            query = parse_qs(urlparse(self.path).query)
+            uuid = query.get("uuid", [""])[0]
+            home = query.get("home", [""])[0]
+            away = query.get("away", [""])[0]
+            min_goals = int(query.get("min_goals", [0])[0] or 0)
+            goals = []
+            if uuid:
+                goals = fetch_match_goals(home, away, uuid, min_goals=min_goals)
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json; charset=utf-8")
+            self.send_header("Access-Control-Allow-Origin", "*")
+            self.send_header("Cache-Control", "no-cache, no-store, must-revalidate")
+            self.end_headers()
+            self.wfile.write(json.dumps({"success": True, "goals": goals}, ensure_ascii=False).encode("utf-8"))
             return
 
         if self.path.startswith("/api/live-sync") or self.path.startswith("/api/live-matches"):
