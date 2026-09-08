@@ -2935,6 +2935,40 @@ var u,f,l,d=String.fromCharCode;t.exports={version:"2.1.2",encode:a,decode:h}},f
        ========================================================================= */
     const GOALS_CLIENT_CACHE = {};
     const GOALS_FETCH_IN_FLIGHT = {};
+    // uuid -> { expectedGoals, timer } - Sahadan'ın yeni golü sisteme girmesini beklerken 15 sn'de bir yeniden dener
+    const GOALS_PENDING_RETRY = {};
+
+    function scheduleGoalRetry(uuid, homeTeam, awayTeam, expectedGoals) {
+      if (GOALS_PENDING_RETRY[uuid]) return; // Zaten bekliyor
+      GOALS_PENDING_RETRY[uuid] = { expectedGoals };
+      const attempt = async () => {
+        if (!GOALS_PENDING_RETRY[uuid]) return; // İptal edilmiş
+        const baseUrl = getGoalsApiBaseUrl();
+        try {
+          const res = await fetch(`${baseUrl}/api/match-goals?uuid=${encodeURIComponent(uuid)}&home=${encodeURIComponent(homeTeam||'')}&away=${encodeURIComponent(awayTeam||'')}&min_goals=${expectedGoals}`);
+          const data = await res.json();
+          if (data.success && Array.isArray(data.goals) && data.goals.length >= expectedGoals) {
+            // Artık tam veri geldi, önbelleği güncelle ve tooltip'i yenile
+            GOALS_CLIENT_CACHE[uuid] = data.goals;
+            delete GOALS_PENDING_RETRY[uuid];
+            // Açık tooltip varsa hemen güncelle
+            const scoreEl = document.querySelector(`[data-uuid="${uuid}"] .live-score-box, [data-match-uuid="${uuid}"] .live-score-box`);
+            if (scoreEl && scoreEl.querySelector('.odds-tooltip')) {
+              scoreEl.querySelector('.odds-tooltip').innerHTML = formatGoalsHtml(data.goals, homeTeam, awayTeam, false);
+            }
+          } else if (GOALS_PENDING_RETRY[uuid]) {
+            // Hâlâ eksik, 15 sn sonra tekrar dene
+            GOALS_PENDING_RETRY[uuid].timer = setTimeout(attempt, 15000);
+          }
+        } catch(e) {
+          if (GOALS_PENDING_RETRY[uuid]) {
+            GOALS_PENDING_RETRY[uuid].timer = setTimeout(attempt, 15000);
+          }
+        }
+      };
+      GOALS_PENDING_RETRY[uuid].timer = setTimeout(attempt, 15000);
+    }
+
 
     function populateGoalsClientCacheFromData() {
       try {
@@ -3187,14 +3221,24 @@ var u,f,l,d=String.fromCharCode;t.exports={version:"2.1.2",encode:a,decode:h}},f
           if (data.goals.length >= prevCachedGoals.length) {
             GOALS_CLIENT_CACHE[uuid] = data.goals;
             tooltip.innerHTML = formatGoalsHtml(data.goals, homeTeam, awayTeam, canStream);
+            // Hâlâ eksik gol var mı? (Sahadan son golü henüz işlemedi olabilir)
+            if (currentTotalScore && data.goals.length < currentTotalScore) {
+              scheduleGoalRetry(uuid, homeTeam, awayTeam, currentTotalScore);
+            } else {
+              delete GOALS_PENDING_RETRY[uuid]; // Tamamlandı, retry'ı iptal et
+            }
           } else {
             // Yeni istek henüz son golü içermiyorsa bile eldeki eski golleri asla silme
             tooltip.innerHTML = formatGoalsHtml(prevCachedGoals, homeTeam, awayTeam, canStream);
+            if (currentTotalScore) scheduleGoalRetry(uuid, homeTeam, awayTeam, currentTotalScore);
           }
         } else {
           // Yeni istek henüz gol listesini ayrıştıramadıysa eski golleri koru
           const fallback = prevCachedGoals.length ? prevCachedGoals : (GOALS_CLIENT_CACHE[uuid] || []);
           tooltip.innerHTML = formatGoalsHtml(fallback, homeTeam, awayTeam, canStream);
+          if (currentTotalScore && fallback.length < currentTotalScore) {
+            scheduleGoalRetry(uuid, homeTeam, awayTeam, currentTotalScore);
+          }
         }
       } catch (err) {
         const fallbackGoals = prevCachedGoals.length ? prevCachedGoals : (GOALS_CLIENT_CACHE[uuid] || []);

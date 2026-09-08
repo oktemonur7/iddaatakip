@@ -135,9 +135,13 @@ def fetch_match_goals(home, away, uuid, min_goals=0):
             if status_val in ("played", "ms", "ft", "finished"):
                 is_ft = True
 
+        # Eğer beklenen gol sayısına ulaşılamadıysa (Sahadan henüz güncellemedi),
+        # sonucu çok kısa süre (10 sn) önbellekle ki bir sonraki hover hızlıca tekrar denesin.
+        # Tam gol sayısına ulaşıldıysa normal 60 sn önbellekle.
+        incomplete = (min_goals > 0 and len(goals) < min_goals)
         MATCH_GOALS_CACHE[uuid] = {
             "goals": goals,
-            "time": now,
+            "time": now if not incomplete else (now - 50),  # 10 sn TTL for incomplete
             "is_ft": is_ft
         }
         return goals
