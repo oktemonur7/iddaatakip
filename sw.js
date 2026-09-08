@@ -1,4 +1,4 @@
-const CACHE = "iddaatakip-v42";
+const CACHE = "iddaatakip-v43";
 const OFFLINE_ASSETS = [
   "./",
   "./index.html",
@@ -32,6 +32,9 @@ self.addEventListener("activate", e => {
 self.addEventListener("fetch", e => {
   if (e.request.method !== "GET") return;
   const url = new URL(e.request.url);
+
+  // Cross-origin API isteklerini (Render backend, WebSocket, Sahadan) SW önbelleğinden muaf tut
+  if (url.origin !== self.location.origin) return;
 
   // Sayfa istekleri (index.html / navigation): Network-First, ancak ağ 2.5s içinde yanıt vermezse hemen önbellekten sun
   if (e.request.mode === "navigate" || url.pathname.endsWith("/index.html") || url.pathname.endsWith("/")) {
