@@ -4,8 +4,12 @@ on:
   push:
     branches: [main]
   schedule:
-    # Her gün saat 09:00 Türkiye saati (06:00 UTC) çalışır
-    - cron: '0 6 * * *'
+    # Türkiye saatleri (UTC+3):
+    # 09:00 TSI (06:00 UTC) - Sabah bülteni
+    # 13:00 TSI (10:00 UTC) - Öğle oran güncellemeleri
+    # 16:00 TSI (13:00 UTC) - İkindi / erken maçlar öncesi
+    # 19:00 TSI (16:00 UTC) - Akşam ana maçlar öncesi
+    - cron: '0 6,10,13,16 * * *'
   workflow_dispatch:   # Manuel tetikleme butonu
 
 permissions:
