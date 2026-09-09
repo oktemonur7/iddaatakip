@@ -2298,15 +2298,23 @@ var u,f,l,d=String.fromCharCode;t.exports={version:"2.1.2",encode:a,decode:h}},f
       syncFavoritesToServer();
     }
 
+    function onAppResume() {
+      checkAndResetFavoritesAt7AM();
+      if (typeof tickLiveMinutes === "function") tickLiveMinutes();
+      if (typeof renderLiveScores === "function") renderLiveScores();
+      if (typeof pollLiveScoresFromServer === "function") {
+        pollLiveScoresFromServer(true);
+      }
+    }
+
     setInterval(checkAndResetFavoritesAt7AM, 15000);
     document.addEventListener("visibilitychange", () => {
       if (document.visibilityState === "visible") {
-        checkAndResetFavoritesAt7AM();
-        if (typeof pollLiveScoresFromServer === "function") {
-          pollLiveScoresFromServer();
-        }
+        onAppResume();
       }
     });
+    window.addEventListener("pageshow", onAppResume);
+    window.addEventListener("focus", onAppResume);
 
     // Gol Bildirimi (Net, kulağı tırmalamayan ve tok çift tonlu gol uyarısı - 2x ses)
     let audioCtx = null;
@@ -2456,6 +2464,19 @@ var u,f,l,d=String.fromCharCode;t.exports={version:"2.1.2",encode:a,decode:h}},f
           }
         });
       }
+
+      // Canlı maç son durumunu localStorage önbelleğinden yükle (iOS PWA uyandığında veya sayfa açıldığında bayat 'Fixture' halini anında günceller)
+      try {
+        const cachedLive = localStorage.getItem("agy_live_scores_cache");
+        if (cachedLive) {
+          const parsed = JSON.parse(cachedLive);
+          if (parsed && Array.isArray(parsed.matches) && (Date.now() - (parsed.time || 0) < 14400000)) {
+            parsed.matches.forEach(item => {
+              applyLiveMatchUpdate(item);
+            });
+          }
+        }
+      } catch (e) {}
 
       try { renderLeagueDropdown(); } catch (e) { console.error("renderLeagueDropdown error:", e); }
       try { loadCurrentLeague(); } catch (e) { console.error("loadCurrentLeague error:", e); }
@@ -4629,11 +4650,17 @@ var u,f,l,d=String.fromCharCode;t.exports={version:"2.1.2",encode:a,decode:h}},f
     }
 
     // Sahadan HTTP Canlı Senkronizasyon (WebSocket kopsa bile kesintisiz canlı skor)
-    async function pollLiveScoresFromServer() {
+    let isPollingLiveScores = false;
+    async function pollLiveScoresFromServer(isForced) {
+      if (isPollingLiveScores && !isForced) return;
+      isPollingLiveScores = true;
       const serverBase = getPushServerUrl() || window.location.origin;
       const endpoint = serverBase.replace(/\/+$/, "") + "/api/live-sync?_t=" + Date.now();
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 4500);
       try {
-        const res = await fetch(endpoint, { cache: "no-store" });
+        const res = await fetch(endpoint, { cache: "no-store", signal: controller.signal });
+        clearTimeout(timer);
         if (!res.ok) return;
         const data = await res.json();
         if (data && Array.isArray(data.matches)) {
@@ -4648,11 +4675,20 @@ var u,f,l,d=String.fromCharCode;t.exports={version:"2.1.2",encode:a,decode:h}},f
           } else {
             checkAndFixFavOrder();
           }
+          try {
+            localStorage.setItem("agy_live_scores_cache", JSON.stringify({
+              time: Date.now(),
+              matches: data.matches
+            }));
+          } catch (e) {}
           const connDot = document.getElementById("live-conn-dot");
           if (connDot) connDot.className = "connection-dot";
         }
       } catch (err) {
-        // Sessiz fallback
+        // Sessiz fallback (Abort veya ağ hatası)
+      } finally {
+        clearTimeout(timer);
+        isPollingLiveScores = false;
       }
     }
 
