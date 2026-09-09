@@ -36,3 +36,8 @@
 6. **UptimeRobot & Render Uyanık Tutma (HEAD Metodu ve /health Rotası):**
    - UptimeRobot'un ücretsiz planındaki varsayılan `HEAD` sorguları için `push_server.py` RequestHandler'ına `do_HEAD` eklendi.
    - `/`, `""`, `/health` ve `/api/subscriptions` adreslerine gelen her türlü HEAD/GET sorgusu 200 OK dönecek şekilde optimize edildi. Render artık dışarıdan gelen pinglerle 7/24 kesintisiz uyanık kalır.
+
+7. **Gol İptali (VAR) Gecikmesi Çözüldü:**
+   - Gol sonrası bayat paket filtreleme süresinin (jitter koruması) hem `push_server.py` hem de `index.html` içinde 120 saniye (2 dakika) olarak tanımlandığı ve bu yüzden VAR gol iptallerini tam 2 dakika boyunca bloke ettiği tespit edildi.
+   - Jitter koruma süresi 120 saniyeden 6 saniyeye çekildi. Hakem golü iptal edip Sahadan skoru düşürdüğü an sistem gecikmesiz olarak golü iptal eder, kırmızı neon flaş ve iptal sesini çalar.
+

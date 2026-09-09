@@ -423,14 +423,14 @@ def process_match_update(update, is_initial=False, is_from_full_sync=False):
     last_goal_time = m.get("last_goal_time", 0)
 
     if new_h is not None and m["home_score"] is not None and new_h < m["home_score"]:
-        # Gol sonrası 120 saniye boyunca dalgalanma/bayat paket koruması (skor düşüşünü yoksay)
-        if (now_ts - last_goal_time) < 120:
+        # Gol sonrası 6 saniye boyunca dalgalanma/bayat paket koruması (6s sonrasındaki düşüşler gerçek VAR gol iptalidir)
+        if (now_ts - last_goal_time) < 6:
             new_h = m["home_score"]
         else:
             is_home_cancel = True
 
     if new_a is not None and m["away_score"] is not None and new_a < m["away_score"]:
-        if (now_ts - last_goal_time) < 120:
+        if (now_ts - last_goal_time) < 6:
             new_a = m["away_score"]
         else:
             is_away_cancel = True
@@ -674,7 +674,7 @@ def sahadan_http_sync_worker():
                                             old_a = tracked.get("away_score")
                                             old_min = tracked.get("minute")
                                             last_gt = tracked.get("last_goal_time", 0)
-                                            if (now - last_gt) < 120:
+                                            if (now - last_gt) < 6:
                                                 if old_h is not None and (match_dict.get("fts_A") is None or int(match_dict.get("fts_A", 0)) < old_h):
                                                     match_dict["fts_A"] = old_h
                                                 if old_a is not None and (match_dict.get("fts_B") is None or int(match_dict.get("fts_B", 0)) < old_a):

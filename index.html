@@ -4349,10 +4349,10 @@ var u,f,l,d=String.fromCharCode;t.exports={version:"2.1.2",encode:a,decode:h}},f
         let newHome = parseInt(update.fts_A, 10);
         const oldHome = (m.home_score !== null && m.home_score !== undefined && !isNaN(parseInt(m.home_score, 10))) ? parseInt(m.home_score, 10) : null;
 
-        // Jitter / Bayat Paket Koruması: Gol sonrası 120s (2 dk) boyunca dalgalanan veya bayat eski skorlar kabul edilmez
+        // Jitter / Bayat Paket Koruması: Gol sonrası 6s boyunca anlık dalgalanan paketler engellenir, gerçek VAR iptali anında kabul edilir
         if (oldHome !== null && newHome < oldHome) {
-          if (nowTs - lastGoalTime < 120000) {
-            newHome = oldHome; // 2 dakika boyunca anlık dalgalanmayı ve bayat senkronizasyonu engelle
+          if (nowTs - lastGoalTime < 6000) {
+            newHome = oldHome; // İlk 6 saniye içindeki anlık paket dalgalanmasını engelle
           } else if (!isInitialSync) {
             goalCancelled = true;
           }
@@ -4371,10 +4371,10 @@ var u,f,l,d=String.fromCharCode;t.exports={version:"2.1.2",encode:a,decode:h}},f
         let newAway = parseInt(update.fts_B, 10);
         const oldAway = (m.away_score !== null && m.away_score !== undefined && !isNaN(parseInt(m.away_score, 10))) ? parseInt(m.away_score, 10) : null;
 
-        // Jitter / Bayat Paket Koruması: Gol sonrası 120s (2 dk) boyunca dalgalanan veya bayat eski skorlar kabul edilmez
+        // Jitter / Bayat Paket Koruması: Gol sonrası 6s boyunca anlık dalgalanan paketler engellenir, gerçek VAR iptali anında kabul edilir
         if (oldAway !== null && newAway < oldAway) {
-          if (nowTs - lastGoalTime < 120000) {
-            newAway = oldAway; // 2 dakika boyunca anlık dalgalanmayı ve bayat senkronizasyonu engelle
+          if (nowTs - lastGoalTime < 6000) {
+            newAway = oldAway; // İlk 6 saniye içindeki anlık paket dalgalanmasını engelle
           } else if (!isInitialSync) {
             goalCancelled = true;
           }
