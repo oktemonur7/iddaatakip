@@ -32,3 +32,7 @@
 
 5. **Masaüstü Derlemesi & Tek Dosya Standalone Yapı:**
    - `build_desktop.py` ile `socket.io.v2.slim.js` doğrudan HTML içine gömülerek sıfır CDN bağımlılığı sağlandı.
+
+6. **UptimeRobot & Render Uyanık Tutma (HEAD Metodu ve /health Rotası):**
+   - UptimeRobot'un ücretsiz planındaki varsayılan `HEAD` sorguları için `push_server.py` RequestHandler'ına `do_HEAD` eklendi.
+   - `/`, `""`, `/health` ve `/api/subscriptions` adreslerine gelen her türlü HEAD/GET sorgusu 200 OK dönecek şekilde optimize edildi. Render artık dışarıdan gelen pinglerle 7/24 kesintisiz uyanık kalır.
