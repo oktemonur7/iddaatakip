@@ -3,10 +3,10 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
-  <title>İddaa Takip - Canlı Skorlar & Puan Durumu</title>
+  <title>FootFollow - Canlı Skorlar &amp; Puan Durumu</title>
   <meta name="theme-color" content="#00ff85" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
-  <meta name="apple-mobile-web-app-title" content="İddaa Takip" />
+  <meta name="apple-mobile-web-app-title" content="FootFollow" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="description" content="19 lig ve Avrupa kupalarında canlı skorlar, puan durumu ve iddaa oranları" />
   <link rel="manifest" href="manifest.json" />
@@ -4366,10 +4366,10 @@ var u,f,l,d=String.fromCharCode;t.exports={version:"2.1.2",encode:a,decode:h}},f
         let newHome = parseInt(update.fts_A, 10);
         const oldHome = (m.home_score !== null && m.home_score !== undefined && !isNaN(parseInt(m.home_score, 10))) ? parseInt(m.home_score, 10) : null;
 
-        // Jitter / Bayat Paket Koruması: Gol sonrası 6s boyunca anlık dalgalanan paketler engellenir, gerçek VAR iptali anında kabul edilir
+        // Jitter / Bayat Paket Koruması: Gol sonrası 15s boyunca anlık dalgalanan paketler engellenir, gerçek VAR iptali anında kabul edilir
         if (oldHome !== null && newHome < oldHome) {
-          if (nowTs - lastGoalTime < 6000) {
-            newHome = oldHome; // İlk 6 saniye içindeki anlık paket dalgalanmasını engelle
+          if (nowTs - lastGoalTime < 15000) {
+            newHome = oldHome; // İlk 15 saniye içindeki anlık paket dalgalanmasını engelle
           } else if (!isInitialSync) {
             goalCancelled = true;
           }
@@ -4388,10 +4388,10 @@ var u,f,l,d=String.fromCharCode;t.exports={version:"2.1.2",encode:a,decode:h}},f
         let newAway = parseInt(update.fts_B, 10);
         const oldAway = (m.away_score !== null && m.away_score !== undefined && !isNaN(parseInt(m.away_score, 10))) ? parseInt(m.away_score, 10) : null;
 
-        // Jitter / Bayat Paket Koruması: Gol sonrası 6s boyunca anlık dalgalanan paketler engellenir, gerçek VAR iptali anında kabul edilir
+        // Jitter / Bayat Paket Koruması: Gol sonrası 15s boyunca anlık dalgalanan paketler engellenir, gerçek VAR iptali anında kabul edilir
         if (oldAway !== null && newAway < oldAway) {
-          if (nowTs - lastGoalTime < 6000) {
-            newAway = oldAway; // İlk 6 saniye içindeki anlık paket dalgalanmasını engelle
+          if (nowTs - lastGoalTime < 15000) {
+            newAway = oldAway; // İlk 15 saniye içindeki anlık paket dalgalanmasını engelle
           } else if (!isInitialSync) {
             goalCancelled = true;
           }
@@ -4416,8 +4416,9 @@ var u,f,l,d=String.fromCharCode;t.exports={version:"2.1.2",encode:a,decode:h}},f
         }
       }
 
-      // Yeni gol olduysa veya skor değiştiyse eski gol önbelleğini sıfırla ve güncel golleri anında getir
-      if (scoreChanged || goalScored) {
+      // Yeni GERÇEk GOL olduysa önbelleği sıfırla ve güncel golleri anında getir
+      // NOT: scoreChanged (status/dakika değişimi) artık önbelleği tetiklemez — sadece goalScored tetikler
+      if (goalScored) {
         const mUuidKey = m.uuid || m.match_uuid || (m.match_id != null ? String(m.match_id) : (m.id != null ? String(m.id) : ""));
         if (mUuidKey) {
           const existingGoals = (Array.isArray(m.goals) && m.goals.length > 0) ? m.goals : (GOALS_CLIENT_CACHE[mUuidKey] || []);
@@ -4448,10 +4449,19 @@ var u,f,l,d=String.fromCharCode;t.exports={version:"2.1.2",encode:a,decode:h}},f
         }
       }
 
+      // Ertelenmiş İptal Mekanizması: Anlık skor düşüşü gerçek VAR mı yoksa jitter mı?
+      // _pendingCancelScore'u kaydet; gerçek timer scoreEl referansına sahip DOM bloğunda kurulur
       if (goalCancelled) {
-        // İptal edilen skoru hafızadan sil ki ileride tekrar o skora çıkarsa haber versin
-        m._notifiedScores.clear();
+        const cancelScore = `${m.home_score}-${m.away_score}`;
+        // Önceki bekleyen bir iptal varsa iptal et
+        if (m._pendingCancelTimer) {
+          clearTimeout(m._pendingCancelTimer);
+          delete m._pendingCancelTimer;
+        }
+        m._pendingCancelScore = cancelScore;
+        // Timer, scoreEl'e sahip DOM bloğunda (aşağıda) kurulacak
       }
+
 
       if (update.hts_A !== undefined && update.hts_A !== null) m.half_time_home = update.hts_A;
       if (update.hts_B !== undefined && update.hts_B !== null) m.half_time_away = update.hts_B;
@@ -4591,17 +4601,31 @@ var u,f,l,d=String.fromCharCode;t.exports={version:"2.1.2",encode:a,decode:h}},f
           }, 12000);
         }
 
-        // 2. Gol İptali animasyonu (kırmızı neon parlama) ve İptal Sesi
-        if (goalCancelled) {
-          if (shouldAlert) {
-            playCancelSound();
-          }
-          scoreEl.classList.remove("goal-flash", "red-card-flash");
-          scoreEl.classList.add("goal-cancel-flash");
-          if (m._flashTimer) clearTimeout(m._flashTimer);
-          m._flashTimer = setTimeout(() => {
-            if (scoreEl) scoreEl.classList.remove("goal-cancel-flash");
-          }, 10000);
+        // 2. Gol İptali animasyonu (kırmızı neon parlama) ve İptal Sesi — 2s ertelenmiş onay
+        // _pendingCancelScore yukarıda goalCancelled bloğunda ayarlandı; scoreEl kapatma (closure) burada yapılır
+        if (goalCancelled && m._pendingCancelScore !== undefined) {
+          const cancelScoreEl = scoreEl;
+          const cancelShouldAlert = shouldAlert;
+          m._pendingCancelTimer = setTimeout(() => {
+            const currentNow = `${m.home_score}-${m.away_score}`;
+            if (m._pendingCancelScore === currentNow) {
+              // Gerçek VAR iptali onaylandı: 2s sonra hâlâ aynı (düşük) skor
+              m._notifiedScores.clear();
+              delete m._pendingCancelScore;
+              if (cancelShouldAlert) {
+                playCancelSound();
+              }
+              if (cancelScoreEl) {
+                cancelScoreEl.classList.remove("goal-flash", "red-card-flash");
+                cancelScoreEl.classList.add("goal-cancel-flash");
+                if (m._flashTimer) clearTimeout(m._flashTimer);
+                m._flashTimer = setTimeout(() => {
+                  if (cancelScoreEl) cancelScoreEl.classList.remove("goal-cancel-flash");
+                }, 10000);
+              }
+            }
+            delete m._pendingCancelTimer;
+          }, 2000);
         }
 
         // 3. Kırmızı Kart animasyonu ve Düdük Sesi
@@ -4825,14 +4849,14 @@ var u,f,l,d=String.fromCharCode;t.exports={version:"2.1.2",encode:a,decode:h}},f
     let currentPushSubscription = null;
 
     function getPushServerUrl() {
-      const saved = localStorage.getItem("iddaatakip_push_server");
+      const saved = localStorage.getItem("footfollow_push_server") || localStorage.getItem("iddaatakip_push_server");
       if (saved && !saved.includes("localhost") && !saved.includes("127.0.0.1")) return saved;
       return "https://iddaatakip.onrender.com";
     }
 
     function savePushServerUrl(url) {
-      if (url) localStorage.setItem("iddaatakip_push_server", url.trim().replace(/\/+$/, ""));
-      else localStorage.removeItem("iddaatakip_push_server");
+      if (url) localStorage.setItem("footfollow_push_server", url.trim().replace(/\/+$/, ""));
+      else localStorage.removeItem("footfollow_push_server");
     }
 
     function openNotifModal() {

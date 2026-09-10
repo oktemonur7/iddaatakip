@@ -423,14 +423,14 @@ def process_match_update(update, is_initial=False, is_from_full_sync=False):
     last_goal_time = m.get("last_goal_time", 0)
 
     if new_h is not None and m["home_score"] is not None and new_h < m["home_score"]:
-        # Gol sonrası 6 saniye boyunca dalgalanma/bayat paket koruması (6s sonrasındaki düşüşler gerçek VAR gol iptalidir)
-        if (now_ts - last_goal_time) < 6:
+        # Gol sonrası 15 saniye boyunca dalgalanma/bayat paket koruması (15s sonrasındaki düşüşler gerçek VAR gol iptalidir)
+        if (now_ts - last_goal_time) < 15:
             new_h = m["home_score"]
         else:
             is_home_cancel = True
 
     if new_a is not None and m["away_score"] is not None and new_a < m["away_score"]:
-        if (now_ts - last_goal_time) < 6:
+        if (now_ts - last_goal_time) < 15:
             new_a = m["away_score"]
         else:
             is_away_cancel = True
@@ -1107,7 +1107,7 @@ if __name__ == "__main__":
     keepalive_thread = threading.Thread(target=keep_alive_ping, daemon=True)
     keepalive_thread.start()
 
-    log_event(f"🚀 İddaa Takip Web Push Sunucusu Başlatıldı (Port: {PORT})")
+    log_event(f"🚀 FootFollow Web Push Sunucusu Başlatıldı (Port: {PORT})")
 
     class ThreadedTCPServer(socketserver.ThreadingMixIn, socketserver.TCPServer):
         daemon_threads = True
