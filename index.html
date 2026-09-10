@@ -2106,6 +2106,314 @@ var u,f,l,d=String.fromCharCode;t.exports={version:"2.1.2",encode:a,decode:h}},f
       opacity: 0.9;
       transform: translateY(-1px);
     }
+
+    /* TOOLTIP ACTION BOX & LINEUP BUTTON */
+    .tooltip-action-box {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      margin-top: 6px;
+      padding-top: 6px;
+      border-top: 1px solid rgba(255, 255, 255, 0.1);
+      width: 100%;
+    }
+
+    .tooltip-lineup-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 4px;
+      padding: 4px 10px;
+      background: rgba(16, 185, 129, 0.18);
+      border: 1px solid rgba(16, 185, 129, 0.4);
+      border-radius: 6px;
+      color: #34d399;
+      font-size: 0.72rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      white-space: nowrap;
+      text-decoration: none;
+    }
+
+    .tooltip-lineup-btn:hover {
+      background: rgba(16, 185, 129, 0.32);
+      border-color: rgba(16, 185, 129, 0.7);
+      color: #6ee7b7;
+      transform: translateY(-1px);
+      box-shadow: 0 2px 8px rgba(16, 185, 129, 0.3);
+    }
+
+    /* LINEUP MODAL */
+    .lineup-modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.75);
+      backdrop-filter: blur(6px);
+      -webkit-backdrop-filter: blur(6px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 99999;
+      padding: 12px;
+    }
+
+    .lineup-modal-card {
+      background: #0f172a;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 14px;
+      width: 100%;
+      max-width: 440px;
+      max-height: 94vh;
+      overflow-y: auto;
+      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.7), 0 0 25px rgba(16, 185, 129, 0.15);
+      display: flex;
+      flex-direction: column;
+      animation: modal-in 0.2s ease-out;
+    }
+
+    .lineup-modal-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 16px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      background: rgba(15, 23, 42, 0.95);
+    }
+
+    .lineup-modal-title {
+      font-size: 0.92rem;
+      font-weight: 700;
+      color: #f8fafc;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .lineup-modal-close {
+      background: transparent;
+      border: none;
+      color: #94a3b8;
+      font-size: 1.5rem;
+      cursor: pointer;
+      line-height: 1;
+      padding: 0 4px;
+      transition: color 0.15s;
+    }
+
+    .lineup-modal-close:hover {
+      color: #fff;
+    }
+
+    .lineup-pitch-container {
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      width: 100%;
+      box-sizing: border-box;
+    }
+
+    .lineup-team-banner {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      width: 100%;
+      padding: 8px 12px;
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(255, 255, 255, 0.07);
+      border-radius: 8px;
+      margin-bottom: 10px;
+      box-sizing: border-box;
+    }
+
+    .lineup-team-info {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.82rem;
+      font-weight: 700;
+      overflow: hidden;
+    }
+
+    .lineup-team-info span:nth-child(2) {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      max-width: 120px;
+    }
+
+    .lineup-team-info.home {
+      color: #38bdf8;
+    }
+
+    .lineup-team-info.away {
+      color: #fbbf24;
+    }
+
+    .lineup-formation-tag {
+      font-size: 0.70rem;
+      font-weight: 600;
+      color: #94a3b8;
+      background: rgba(0, 0, 0, 0.4);
+      padding: 2px 6px;
+      border-radius: 4px;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      white-space: nowrap;
+    }
+
+    .lineup-pitch {
+      position: relative;
+      width: 100%;
+      height: 480px;
+      background: #15803d;
+      background: linear-gradient(180deg, #14532d 0%, #166534 50%, #14532d 100%);
+      border: 2px solid rgba(255, 255, 255, 0.85);
+      border-radius: 8px;
+      overflow: hidden;
+      box-shadow: inset 0 0 25px rgba(0, 0, 0, 0.45);
+      box-sizing: border-box;
+    }
+
+    /* Mown grass lawn stripes */
+    .lineup-pitch::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: repeating-linear-gradient(
+        0deg,
+        rgba(255, 255, 255, 0.04) 0px,
+        rgba(255, 255, 255, 0.04) 40px,
+        transparent 40px,
+        transparent 80px
+      );
+      pointer-events: none;
+    }
+
+    /* Center line */
+    .pitch-line-center {
+      position: absolute;
+      top: 50%;
+      left: 0;
+      right: 0;
+      height: 2px;
+      background: rgba(255, 255, 255, 0.7);
+      transform: translateY(-50%);
+    }
+
+    /* Center circle */
+    .pitch-circle-center {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      width: 76px;
+      height: 76px;
+      border: 2px solid rgba(255, 255, 255, 0.7);
+      border-radius: 50%;
+      transform: translate(-50%, -50%);
+    }
+
+    .pitch-spot-center {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      width: 5px;
+      height: 5px;
+      background: rgba(255, 255, 255, 0.8);
+      border-radius: 50%;
+      transform: translate(-50%, -50%);
+    }
+
+    /* Top penalty area */
+    .pitch-box-top {
+      position: absolute;
+      top: 0;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 56%;
+      height: 16%;
+      border: 2px solid rgba(255, 255, 255, 0.7);
+      border-top: none;
+    }
+
+    .pitch-goal-top {
+      position: absolute;
+      top: 0;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 26%;
+      height: 6%;
+      border: 2px solid rgba(255, 255, 255, 0.7);
+      border-top: none;
+    }
+
+    /* Bottom penalty area */
+    .pitch-box-bottom {
+      position: absolute;
+      bottom: 0;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 56%;
+      height: 16%;
+      border: 2px solid rgba(255, 255, 255, 0.7);
+      border-bottom: none;
+    }
+
+    .pitch-goal-bottom {
+      position: absolute;
+      bottom: 0;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 26%;
+      height: 6%;
+      border: 2px solid rgba(255, 255, 255, 0.7);
+      border-bottom: none;
+    }
+
+    /* Player marker on pitch */
+    .pitch-player {
+      position: absolute;
+      transform: translate(-50%, -50%);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      pointer-events: none;
+      z-index: 2;
+    }
+
+    .pitch-player-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      border: 1.5px solid #ffffff;
+      box-shadow: 0 1px 4px rgba(0, 0, 0, 0.7);
+    }
+
+    .pitch-player.team-home .pitch-player-dot {
+      background: #38bdf8;
+      box-shadow: 0 0 6px rgba(56, 189, 248, 0.8);
+    }
+
+    .pitch-player.team-away .pitch-player-dot {
+      background: #fbbf24;
+      box-shadow: 0 0 6px rgba(251, 191, 36, 0.8);
+    }
+
+    .pitch-player-name {
+      margin-top: 2px;
+      font-size: 0.65rem;
+      font-weight: 700;
+      color: #ffffff;
+      text-shadow: 0 1px 3px rgba(0, 0, 0, 0.95), 0 0 2px rgba(0, 0, 0, 0.9);
+      white-space: nowrap;
+      letter-spacing: -0.2px;
+      padding: 0 2px;
+    }
   </style>
 </head>
 <body>
@@ -2888,7 +3196,7 @@ var u,f,l,d=String.fromCharCode;t.exports={version:"2.1.2",encode:a,decode:h}},f
           : "";
         const goalTooltipInner = hasGoalTooltip 
           ? (preloadedGoals && preloadedGoals.length > 0 
-              ? `<div class="odds-tooltip">${formatGoalsHtml(preloadedGoals, hName, aName, isLive, totalExpectedGoals)}</div>`
+              ? `<div class="odds-tooltip">${formatGoalsHtml(preloadedGoals, hName, aName, isLive, totalExpectedGoals, mUuid)}</div>`
               : `<div class="odds-tooltip" style="min-width: 150px;"><div class="odds-row" style="color: #94a3b8; font-size: 0.74rem; padding: 2px 4px; text-align: center;"><span>${totalExpectedGoals === 0 ? 'Henüz gol yok' : 'Yükleniyor...'}</span></div></div>`)
           : "";
 
@@ -3044,7 +3352,7 @@ var u,f,l,d=String.fromCharCode;t.exports={version:"2.1.2",encode:a,decode:h}},f
     function updateAllGoalTooltipsForMatch(uuid, homeTeam, awayTeam, goals, isLive, expectedGoals = 0) {
       if (!Array.isArray(goals) && !expectedGoals) return;
       const safeGoals = Array.isArray(goals) ? goals : [];
-      const goalsHtml = formatGoalsHtml(safeGoals, homeTeam, awayTeam, isLive, expectedGoals);
+      const goalsHtml = formatGoalsHtml(safeGoals, homeTeam, awayTeam, isLive, expectedGoals, uuid);
       
       // 1. Canlı skor listesindeki ilgili maç kartları
       let matchId = null;
@@ -3150,7 +3458,7 @@ var u,f,l,d=String.fromCharCode;t.exports={version:"2.1.2",encode:a,decode:h}},f
 
             if (currentRetry.targetEl) {
               const tip = currentRetry.targetEl.querySelector('.odds-tooltip');
-              if (tip) tip.innerHTML = formatGoalsHtml(goals, homeTeam, awayTeam, true, currentRetry.expectedGoals);
+              if (tip) tip.innerHTML = formatGoalsHtml(goals, homeTeam, awayTeam, true, currentRetry.expectedGoals, uuid);
             }
             updateAllGoalTooltipsForMatch(uuid, homeTeam, awayTeam, goals, true, currentRetry.expectedGoals);
           } else if (GOALS_PENDING_RETRY[uuid]) {
@@ -3159,7 +3467,7 @@ var u,f,l,d=String.fromCharCode;t.exports={version:"2.1.2",encode:a,decode:h}},f
               GOALS_CLIENT_CACHE[uuid] = goals;
               if (currentRetry.targetEl) {
                 const tip = currentRetry.targetEl.querySelector('.odds-tooltip');
-                if (tip) tip.innerHTML = formatGoalsHtml(goals, homeTeam, awayTeam, true, currentRetry.expectedGoals);
+                if (tip) tip.innerHTML = formatGoalsHtml(goals, homeTeam, awayTeam, true, currentRetry.expectedGoals, uuid);
               }
               updateAllGoalTooltipsForMatch(uuid, homeTeam, awayTeam, goals, true, currentRetry.expectedGoals);
             }
@@ -3247,14 +3555,25 @@ var u,f,l,d=String.fromCharCode;t.exports={version:"2.1.2",encode:a,decode:h}},f
     }
     populateTvClientCacheFromData();
 
-    function formatGoalsHtml(goals, homeTeamName, awayTeamName, canStream = false, expectedGoals = 0) {
+    function formatGoalsHtml(goals, homeTeamName, awayTeamName, canStream = false, expectedGoals = 0, matchUuid = "") {
       const hEsc = (homeTeamName || "").replace(/'/g, "\\'");
       const aEsc = (awayTeamName || "").replace(/'/g, "\\'");
-      const streamBtnHtml = canStream ? `
-        <div class="tooltip-stream-box">
-          <button type="button" class="tooltip-stream-btn" onclick="openMatchStream('${hEsc}', '${aEsc}', event)">
-            <span>▶ Canlı İzle</span>
-          </button>
+      const streamBtn = canStream ? `
+        <button type="button" class="tooltip-stream-btn" onclick="openMatchStream('${hEsc}', '${aEsc}', event)">
+          <span>▶ Canlı İzle</span>
+        </button>
+      ` : "";
+
+      const lineupBtn = matchUuid ? `
+        <button type="button" class="tooltip-lineup-btn" onclick="openMatchLineupModal('${matchUuid}', '${hEsc}', '${aEsc}', event)">
+          <span>📋 Kadrolar</span>
+        </button>
+      ` : "";
+
+      const actionBoxHtml = (streamBtn || lineupBtn) ? `
+        <div class="tooltip-action-box">
+          ${streamBtn}
+          ${lineupBtn}
         </div>
       ` : "";
 
@@ -3266,14 +3585,14 @@ var u,f,l,d=String.fromCharCode;t.exports={version:"2.1.2",encode:a,decode:h}},f
             <div class="odds-row" style="color: #94a3b8; font-size: 0.74rem; padding: 4px 6px; text-align: center;">
               <span>Henüz gol yok</span>
             </div>
-            ${streamBtnHtml}
+            ${actionBoxHtml}
           `;
         }
         return `
           <div class="odds-row" style="color: #38bdf8; font-size: 0.74rem; padding: 4px 6px; text-align: center;">
             <span>⏳ Golcü bilgisi bekleniyor...</span>
           </div>
-          ${streamBtnHtml}
+          ${actionBoxHtml}
         `;
       }
 
@@ -3314,7 +3633,7 @@ var u,f,l,d=String.fromCharCode;t.exports={version:"2.1.2",encode:a,decode:h}},f
         <div class="goal-list">
           ${rowsHtml}
         </div>
-        ${streamBtnHtml}
+        ${actionBoxHtml}
       `;
     }
 
@@ -3390,7 +3709,7 @@ var u,f,l,d=String.fromCharCode;t.exports={version:"2.1.2",encode:a,decode:h}},f
       }
 
       if (currentTotalScore === 0) {
-        tooltip.innerHTML = formatGoalsHtml([], homeTeam, awayTeam, canStream, 0);
+        tooltip.innerHTML = formatGoalsHtml([], homeTeam, awayTeam, canStream, 0, uuid);
         return;
       }
 
@@ -3400,7 +3719,7 @@ var u,f,l,d=String.fromCharCode;t.exports={version:"2.1.2",encode:a,decode:h}},f
       if (uuid && GOALS_CLIENT_CACHE[uuid]) {
         const cachedGoals = GOALS_CLIENT_CACHE[uuid];
         if (areGoalsComplete(cachedGoals, currentTotalScore)) {
-          tooltip.innerHTML = formatGoalsHtml(cachedGoals, homeTeam, awayTeam, canStream, currentTotalScore);
+          tooltip.innerHTML = formatGoalsHtml(cachedGoals, homeTeam, awayTeam, canStream, currentTotalScore, uuid);
           return;
         }
       }
@@ -3416,7 +3735,7 @@ var u,f,l,d=String.fromCharCode;t.exports={version:"2.1.2",encode:a,decode:h}},f
           if (uuid) GOALS_CLIENT_CACHE[uuid] = preloadedMatch.goals;
           if (preloadedMatch.uuid) GOALS_CLIENT_CACHE[preloadedMatch.uuid] = preloadedMatch.goals;
           if (preloadedMatch.match_id != null) GOALS_CLIENT_CACHE[String(preloadedMatch.match_id)] = preloadedMatch.goals;
-          tooltip.innerHTML = formatGoalsHtml(preloadedMatch.goals, homeTeam, awayTeam, canStream, currentTotalScore);
+          tooltip.innerHTML = formatGoalsHtml(preloadedMatch.goals, homeTeam, awayTeam, canStream, currentTotalScore, uuid);
           return;
         }
       }
@@ -3428,21 +3747,21 @@ var u,f,l,d=String.fromCharCode;t.exports={version:"2.1.2",encode:a,decode:h}},f
           if (!prevCachedGoals.length) prevCachedGoals = [...rawCache[uuid]];
           if (areGoalsComplete(rawCache[uuid], currentTotalScore)) {
             GOALS_CLIENT_CACHE[uuid] = rawCache[uuid];
-            tooltip.innerHTML = formatGoalsHtml(rawCache[uuid], homeTeam, awayTeam, canStream, currentTotalScore);
+            tooltip.innerHTML = formatGoalsHtml(rawCache[uuid], homeTeam, awayTeam, canStream, currentTotalScore, uuid);
             return;
           }
         }
       }
 
       if (!uuid) {
-        tooltip.innerHTML = formatGoalsHtml(prevCachedGoals, homeTeam, awayTeam, canStream, currentTotalScore);
+        tooltip.innerHTML = formatGoalsHtml(prevCachedGoals, homeTeam, awayTeam, canStream, currentTotalScore, uuid);
         return;
       }
 
       // 2. Fetch from local backend API: Henüz açılmamışsa mevcut golleri veya "Golcü bilgisi bekleniyor" göster
       if (!tooltip.querySelector(".goal-list")) {
         if (prevCachedGoals.length > 0) {
-          tooltip.innerHTML = formatGoalsHtml(prevCachedGoals, homeTeam, awayTeam, canStream, currentTotalScore);
+          tooltip.innerHTML = formatGoalsHtml(prevCachedGoals, homeTeam, awayTeam, canStream, currentTotalScore, uuid);
         } else {
           tooltip.innerHTML = `
             <div class="odds-row" style="color: #38bdf8; font-size: 0.74rem; padding: 4px 6px; text-align: center;">
@@ -3462,7 +3781,7 @@ var u,f,l,d=String.fromCharCode;t.exports={version:"2.1.2",encode:a,decode:h}},f
         const goals = (data.success && Array.isArray(data.goals)) ? data.goals : [];
         if (goals.length > 0) {
           GOALS_CLIENT_CACHE[uuid] = goals;
-          tooltip.innerHTML = formatGoalsHtml(goals, homeTeam, awayTeam, canStream, currentTotalScore);
+          tooltip.innerHTML = formatGoalsHtml(goals, homeTeam, awayTeam, canStream, currentTotalScore, uuid);
           const isComplete = areGoalsComplete(goals, currentTotalScore);
           if (!isComplete && currentTotalScore) {
             scheduleGoalRetry(uuid, homeTeam, awayTeam, currentTotalScore, el);
@@ -3473,7 +3792,7 @@ var u,f,l,d=String.fromCharCode;t.exports={version:"2.1.2",encode:a,decode:h}},f
           // Henüz Sahadan'da gol kaydı yok:
           const fallback = prevCachedGoals.length ? prevCachedGoals : (GOALS_CLIENT_CACHE[uuid] || []);
           if (fallback.length > 0) {
-            tooltip.innerHTML = formatGoalsHtml(fallback, homeTeam, awayTeam, canStream, currentTotalScore);
+            tooltip.innerHTML = formatGoalsHtml(fallback, homeTeam, awayTeam, canStream, currentTotalScore, uuid);
           } else {
             tooltip.innerHTML = `
               <div class="odds-row" style="color: #38bdf8; font-size: 0.74rem; padding: 4px 6px; text-align: center;">
@@ -3488,7 +3807,7 @@ var u,f,l,d=String.fromCharCode;t.exports={version:"2.1.2",encode:a,decode:h}},f
       } catch (err) {
         const fallback = prevCachedGoals.length ? prevCachedGoals : (GOALS_CLIENT_CACHE[uuid] || []);
         if (fallback.length > 0) {
-          tooltip.innerHTML = formatGoalsHtml(fallback, homeTeam, awayTeam, canStream, currentTotalScore);
+          tooltip.innerHTML = formatGoalsHtml(fallback, homeTeam, awayTeam, canStream, currentTotalScore, uuid);
         } else {
           tooltip.innerHTML = `
             <div class="odds-row" style="color: #38bdf8; font-size: 0.74rem; padding: 4px 6px; text-align: center;">
@@ -3941,6 +4260,98 @@ var u,f,l,d=String.fromCharCode;t.exports={version:"2.1.2",encode:a,decode:h}},f
       }
     }
 
+    /* =========================================================
+       MAÇ KADROLARI / DİZİLİŞ MODAL
+       ========================================================= */
+    const LINEUP_CLIENT_CACHE = {};
+
+    async function openMatchLineupModal(uuid, homeTeam, awayTeam, event) {
+      if (event) event.stopPropagation();
+
+      const modal   = document.getElementById('lineup-modal');
+      const titleEl = document.getElementById('lineup-modal-title');
+      const bodyEl  = document.getElementById('lineup-modal-body');
+      if (!modal || !bodyEl) return;
+
+      if (titleEl) titleEl.textContent = homeTeam + ' - ' + awayTeam;
+      modal.style.display = 'flex';
+
+      if (LINEUP_CLIENT_CACHE[uuid]) {
+        renderLineupPitch(LINEUP_CLIENT_CACHE[uuid], homeTeam, awayTeam, bodyEl);
+        return;
+      }
+
+      bodyEl.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:120px;gap:10px;color:#94a3b8;font-size:0.85rem;"><span style="font-size:1.4rem;">⏳</span><span>Kadrolar yükleniyor...</span></div>';
+
+      try {
+        const baseUrl = getGoalsApiBaseUrl();
+        const res = await fetch(baseUrl + '/api/match-lineup?uuid=' + encodeURIComponent(uuid) + '&home=' + encodeURIComponent(homeTeam || '') + '&away=' + encodeURIComponent(awayTeam || '') + '&_t=' + Date.now());
+        const data = await res.json();
+
+        if (data.success && data.has_lineup) {
+          LINEUP_CLIENT_CACHE[uuid] = data;
+          renderLineupPitch(data, homeTeam, awayTeam, bodyEl);
+        } else {
+          bodyEl.innerHTML = '<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:120px;gap:8px;color:#94a3b8;font-size:0.82rem;text-align:center;padding:16px;"><span style="font-size:2rem;">📋</span><span>' + (data.message || 'Bu maç için kadro bilgisi henüz mevcut değil.') + '</span></div>';
+        }
+      } catch (err) {
+        bodyEl.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:120px;color:#f87171;font-size:0.82rem;padding:16px;text-align:center;"><span>Kadro yüklenirken hata oluştu.</span></div>';
+      }
+    }
+
+    function renderLineupPitch(data, fallbackHome, fallbackAway, containerEl) {
+      const tA = data.team_A || {};
+      const tB = data.team_B || {};
+      const homeName = tA.name || fallbackHome || 'Ev Sahibi';
+      const awayName = tB.name || fallbackAway || 'Deplasman';
+      const homeForm = tA.formation || '';
+      const awayForm = tB.formation || '';
+      const homePlayers = Array.isArray(tA.players) ? tA.players : [];
+      const awayPlayers = Array.isArray(tB.players) ? tB.players : [];
+      const pitchUsableHeight = 47;
+      const pitchTopOffset   = 3;
+
+      function sName(n) { return (n || '').split(' ').slice(-1)[0]; }
+
+      const homeHtml = homePlayers.map(function(p) {
+        var t = pitchTopOffset + (p.y / 100) * pitchUsableHeight;
+        var l = p.x;
+        return '<div class="pitch-player team-home" style="top:' + t.toFixed(1) + '%;left:' + l.toFixed(1) + '%;"><div class="pitch-player-dot"></div><span class="pitch-player-name">' + sName(p.name) + '</span></div>';
+      }).join('');
+
+      const awayHtml = awayPlayers.map(function(p) {
+        var b = pitchTopOffset + (p.y / 100) * pitchUsableHeight;
+        var l = 100 - p.x;
+        return '<div class="pitch-player team-away" style="bottom:' + b.toFixed(1) + '%;left:' + l.toFixed(1) + '%;"><div class="pitch-player-dot"></div><span class="pitch-player-name">' + sName(p.name) + '</span></div>';
+      }).join('');
+
+      containerEl.innerHTML =
+        '<div class="lineup-pitch-container">' +
+          '<div class="lineup-team-banner">' +
+            '<div class="lineup-team-info home"><span>🔵</span><span title="' + homeName + '">' + homeName + '</span>' + (homeForm ? '<span class="lineup-formation-tag">' + homeForm + '</span>' : '') + '</div>' +
+            '<div style="color:#475569;font-size:0.7rem;font-weight:600;">VS</div>' +
+            '<div class="lineup-team-info away" style="justify-content:flex-end;">' + (awayForm ? '<span class="lineup-formation-tag">' + awayForm + '</span>' : '') + '<span title="' + awayName + '">' + awayName + '</span><span>🟡</span></div>' +
+          '</div>' +
+          '<div class="lineup-pitch">' +
+            '<div class="pitch-line-center"></div>' +
+            '<div class="pitch-circle-center"></div>' +
+            '<div class="pitch-spot-center"></div>' +
+            '<div class="pitch-box-top"></div>' +
+            '<div class="pitch-goal-top"></div>' +
+            '<div class="pitch-box-bottom"></div>' +
+            '<div class="pitch-goal-bottom"></div>' +
+            homeHtml +
+            awayHtml +
+          '</div>' +
+        '</div>';
+    }
+
+    function closeMatchLineupModal(e) {
+      if (e && e.target && !e.target.classList.contains('lineup-modal-overlay')) return;
+      const modal = document.getElementById('lineup-modal');
+      if (modal) modal.style.display = 'none';
+    }
+
     function handleMatchRowClick(homeTeam, awayTeam, event) {
       if (event) {
         if (event.target.closest(".live-fav-btn") || event.target.closest(".live-score-display") || event.target.closest(".odds-tooltip")) {
@@ -3953,6 +4364,8 @@ var u,f,l,d=String.fromCharCode;t.exports={version:"2.1.2",encode:a,decode:h}},f
     document.addEventListener("keydown", (e) => {
       if (e.key === "Escape") {
         closeStreamModal();
+        const lineupModal = document.getElementById('lineup-modal');
+        if (lineupModal) lineupModal.style.display = 'none';
       }
     });
 
@@ -4069,7 +4482,7 @@ var u,f,l,d=String.fromCharCode;t.exports={version:"2.1.2",encode:a,decode:h}},f
         }
         goalHoverAttr = `onmouseenter="loadScoreGoalTooltip(this, '${mUuid}', '${hEsc}', '${aEsc}')"`;
         goalTooltipHtml = (preloadedGoals && preloadedGoals.length > 0)
-          ? `<div class="odds-tooltip">${formatGoalsHtml(preloadedGoals, m.home_team, m.away_team, isLive, totalExpectedGoals)}</div>`
+          ? `<div class="odds-tooltip">${formatGoalsHtml(preloadedGoals, m.home_team, m.away_team, isLive, totalExpectedGoals, mUuid)}</div>`
           : `<div class="odds-tooltip" style="min-width: 150px;"><div class="odds-row" style="color: #94a3b8; font-size: 0.74rem; padding: 2px 4px; text-align: center;"><span>${totalExpectedGoals === 0 ? 'Henüz gol yok' : 'Yükleniyor...'}</span></div></div>`;
       }
 
@@ -5211,6 +5624,22 @@ var u,f,l,d=String.fromCharCode;t.exports={version:"2.1.2",encode:a,decode:h}},f
       </div>
       <div id="stream-modal-content">
         <!-- iframe veya bildiri kutusu JS ile yerleştirilecek -->
+      </div>
+    </div>
+  </div>
+
+  <!-- MAÇ KADROLARI & DİZİLİŞ MODAL -->
+  <div class="lineup-modal-overlay" id="lineup-modal" style="display: none;" onclick="closeMatchLineupModal(event)">
+    <div class="lineup-modal-card" onclick="event.stopPropagation()">
+      <div class="lineup-modal-header">
+        <div class="lineup-modal-title">
+          <span>📋</span>
+          <span id="lineup-modal-title">Maç Kadroları</span>
+        </div>
+        <button class="lineup-modal-close" onclick="closeMatchLineupModal()" aria-label="Kapat">&times;</button>
+      </div>
+      <div id="lineup-modal-body">
+        <!-- JS ile saha ve kadrolar yerleştirilecek -->
       </div>
     </div>
   </div>

@@ -257,6 +257,134 @@ def fetch_match_red_cards(home, away, uuid):
         log_event(f"Kırmızı kart çekme hatası ({slug}): {e}")
         return {"rc_home": 0, "rc_away": 0, "cards": []}
 
+MATCH_LINEUPS_CACHE = {}
+
+def format_formation_str(f_raw):
+    if not f_raw:
+        return ""
+    f_str = str(f_raw).strip()
+    if len(f_str) in (3, 4) and f_str.isdigit():
+        return "-".join(list(f_str))
+    return f_str
+
+def fetch_match_lineup(home, away, uuid):
+    if not uuid:
+        return {"success": False, "has_lineup": False, "message": "Maç ID eksik."}
+
+    now = time.time()
+    if uuid in MATCH_LINEUPS_CACHE:
+        cached = MATCH_LINEUPS_CACHE[uuid]
+        ttl = 1800 if cached.get("data", {}).get("has_lineup") else 180
+        if now - cached.get("time", 0) < ttl:
+            return cached["data"]
+
+    slug = f"{to_sahadan_slug(home)}-vs-{to_sahadan_slug(away)}"
+    ts_bust = int(now * 1000)
+    url = f"https://www.sahadan.com/mac/{slug}/{uuid}?_t={ts_bust}"
+    try:
+        req = urllib.request.Request(url, headers={
+            "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            "Accept-Language": "tr-TR,tr;q=0.9",
+            "Cache-Control": "no-cache"
+        })
+        html = urllib.request.urlopen(req, timeout=8).read().decode("utf-8")
+        m = re.search(r'<script[^>]*id=\"__NUXT_DATA__\"[^>]*>(.*?)</script>', html)
+        if not m:
+            res = {"success": True, "has_lineup": False, "message": "Kadro bilgisi bulunamadı."}
+            MATCH_LINEUPS_CACHE[uuid] = {"data": res, "time": now}
+            return res
+
+        data = json.loads(m.group(1))
+        memo = {}
+        def deep_resolve(val, depth=0):
+            if depth > 25: return val
+            if isinstance(val, int) and 0 <= val < len(data):
+                if val in memo: return memo[val]
+                raw = data[val]
+                if isinstance(raw, list) and len(raw) == 2 and raw[0] in ('ShallowReactive', 'Reactive', 'Set', 'Map'):
+                    res = deep_resolve(raw[1], depth + 1)
+                    memo[val] = res
+                    return res
+                if isinstance(raw, dict):
+                    res = {}
+                    memo[val] = res
+                    for k, v in raw.items(): res[k] = deep_resolve(v, depth + 1)
+                    return res
+                if isinstance(raw, list):
+                    res = []
+                    memo[val] = res
+                    for item in raw: res.append(deep_resolve(item, depth + 1))
+                    return res
+                return raw
+            elif isinstance(val, dict):
+                return {k: deep_resolve(v, depth + 1) for k, v in val.items()}
+            elif isinstance(val, list):
+                return [deep_resolve(v, depth + 1) for v in val]
+            return val
+
+        resolved = deep_resolve(2)
+
+        lineup_data = None
+        for k, v in resolved.items():
+            if isinstance(v, dict) and "data" in v and "lineup" in v["data"]:
+                lineup_data = v["data"]["lineup"]
+                break
+
+        if not lineup_data or not isinstance(lineup_data, dict):
+            res = {"success": True, "has_lineup": False, "message": "Kadro henüz açıklanmadı."}
+            MATCH_LINEUPS_CACHE[uuid] = {"data": res, "time": now}
+            return res
+
+        team_a_data = lineup_data.get("team_A") or {}
+        team_b_data = lineup_data.get("team_B") or {}
+
+        def parse_team_lineup(t_dict):
+            raw_players = t_dict.get("players") or []
+            starters = []
+            for p in raw_players:
+                px = p.get("x")
+                py = p.get("y")
+                if px is not None and py is not None:
+                    p_info = p.get("player") or {}
+                    name = p_info.get("formation_name") or p_info.get("name") or p_info.get("match_name") or ""
+                    starters.append({
+                        "name": name,
+                        "x": px,
+                        "y": py
+                    })
+            return {
+                "formation": format_formation_str(t_dict.get("formation")),
+                "players": starters
+            }
+
+        parsed_a = parse_team_lineup(team_a_data)
+        parsed_b = parse_team_lineup(team_b_data)
+
+        if not parsed_a["players"] and not parsed_b["players"]:
+            res = {"success": True, "has_lineup": False, "message": "Kadro henüz açıklanmadı."}
+            MATCH_LINEUPS_CACHE[uuid] = {"data": res, "time": now}
+            return res
+
+        res = {
+            "success": True,
+            "has_lineup": True,
+            "team_A": {
+                "name": home,
+                "formation": parsed_a["formation"],
+                "players": parsed_a["players"]
+            },
+            "team_B": {
+                "name": away,
+                "formation": parsed_b["formation"],
+                "players": parsed_b["players"]
+            }
+        }
+        MATCH_LINEUPS_CACHE[uuid] = {"data": res, "time": now}
+        return res
+    except Exception as e:
+        log_event(f"Kadro çekme hatası ({slug}): {e}")
+        return {"success": False, "has_lineup": False, "message": f"Kadro yüklenirken hata: {e}"}
+
 last_push_logs = []
 
 def log_event(msg):
@@ -1193,6 +1321,20 @@ class RequestHandler(http.server.SimpleHTTPRequestHandler):
             self.send_header("Cache-Control", "no-cache, no-store, must-revalidate")
             self.end_headers()
             self.wfile.write(json.dumps({"success": True, "goals": goals}, ensure_ascii=False).encode("utf-8"))
+            return
+
+        if self.path.startswith("/api/match-lineup"):
+            from urllib.parse import urlparse, parse_qs
+            query = parse_qs(urlparse(self.path).query)
+            uuid = query.get("uuid", [""])[0]
+            home = query.get("home", [""])[0]
+            away = query.get("away", [""])[0]
+            lineup_res = fetch_match_lineup(home, away, uuid)
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json; charset=utf-8")
+            self.send_header("Cache-Control", "no-cache, no-store, must-revalidate")
+            self.end_headers()
+            self.wfile.write(json.dumps(lineup_res, ensure_ascii=False).encode("utf-8"))
             return
 
         if self.path.startswith("/api/live-sync") or self.path.startswith("/api/live-matches"):
