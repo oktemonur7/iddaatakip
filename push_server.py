@@ -156,6 +156,107 @@ def fetch_match_goals(home, away, uuid, min_goals=0):
         print(f"Error fetching match goals for {slug} ({uuid}):", e)
         return []
 
+MATCH_CARDS_CACHE = {}
+
+def fetch_match_red_cards(home, away, uuid):
+    """
+    Sahadan maç detay sayfasındaki key_events listesinden
+    RC (Direkt Kırmızı) ve Y2C (2. Sarıdan Kırmızı) olaylarını çeker.
+    """
+    if not uuid:
+        return {"rc_home": 0, "rc_away": 0, "cards": []}
+    now = time.time()
+    if uuid in MATCH_CARDS_CACHE:
+        cached = MATCH_CARDS_CACHE[uuid]
+        if now - cached.get("time", 0) < 60:
+            return cached["data"]
+
+    slug = f"{to_sahadan_slug(home)}-vs-{to_sahadan_slug(away)}"
+    ts_bust = int(now * 1000)
+    url = f"https://www.sahadan.com/mac/{slug}/{uuid}?_t={ts_bust}"
+    try:
+        req = urllib.request.Request(url, headers={
+            "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            "Accept-Language": "tr-TR,tr;q=0.9",
+            "Cache-Control": "no-cache"
+        })
+        html = urllib.request.urlopen(req, timeout=8).read().decode("utf-8")
+        m = re.search(r'<script[^>]*id=\"__NUXT_DATA__\"[^>]*>(.*?)</script>', html)
+        if not m:
+            return {"rc_home": 0, "rc_away": 0, "cards": []}
+        data = json.loads(m.group(1))
+
+        memo = {}
+        def deep_resolve(val, depth=0):
+            if depth > 20: return val
+            if isinstance(val, int) and 0 <= val < len(data):
+                if val in memo: return memo[val]
+                raw = data[val]
+                if isinstance(raw, list) and len(raw) == 2 and raw[0] in ('ShallowReactive', 'Reactive', 'Set', 'Map'):
+                    res = deep_resolve(raw[1], depth + 1)
+                    memo[val] = res
+                    return res
+                if isinstance(raw, dict):
+                    res = {}
+                    memo[val] = res
+                    for k, v in raw.items(): res[k] = deep_resolve(v, depth + 1)
+                    return res
+                if isinstance(raw, list):
+                    res = []
+                    memo[val] = res
+                    for item in raw: res.append(deep_resolve(item, depth + 1))
+                    return res
+                return raw
+            elif isinstance(val, dict):
+                return {k: deep_resolve(v, depth + 1) for k, v in val.items()}
+            elif isinstance(val, list):
+                return [deep_resolve(v, depth + 1) for v in val]
+            return val
+
+        resolved = deep_resolve(2)
+        events = []
+        def find_key_events(obj, depth=0):
+            if depth > 10: return
+            if isinstance(obj, dict):
+                if 'key_events' in obj and isinstance(obj['key_events'], list):
+                    events.extend(obj['key_events'])
+                    return
+                for v in obj.values():
+                    find_key_events(v, depth + 1)
+            elif isinstance(obj, list):
+                for item in obj:
+                    find_key_events(item, depth + 1)
+
+        find_key_events(resolved)
+
+        rc_home = 0
+        rc_away = 0
+        cards = []
+        for ev in events:
+            t = ev.get('type')
+            if t in ('RC', 'Y2C'):
+                team_side = str(ev.get('team') or '').upper()
+                player_obj = ev.get('player', {}) or {}
+                p_name = player_obj.get('name') or player_obj.get('display_name') or ''
+                min_val = ev.get('minute')
+                if team_side == 'A':
+                    rc_home += 1
+                elif team_side == 'B':
+                    rc_away += 1
+                cards.append({
+                    "type": t,
+                    "team": team_side,
+                    "player": p_name,
+                    "minute": min_val
+                })
+
+        res_data = {"rc_home": rc_home, "rc_away": rc_away, "cards": cards}
+        MATCH_CARDS_CACHE[uuid] = {"data": res_data, "time": now}
+        return res_data
+    except Exception as e:
+        log_event(f"Kırmızı kart çekme hatası ({slug}): {e}")
+        return {"rc_home": 0, "rc_away": 0, "cards": []}
+
 last_push_logs = []
 
 def log_event(msg):
@@ -811,6 +912,146 @@ def start_socket_listener():
         except Exception:
             time.sleep(5)
 
+# Kırmızı Kart Periyodik İzleme Servisi (3 dk periyot, 5 sn nefes payı)
+def red_card_monitor_worker():
+    time.sleep(20)  # Sunucu ilk açılışta maç verilerinin oturmasını bekle
+    log_event("✓ Kırmızı Kart İzleme Servisi aktif (3 dk periyot, 5 sn nefes payı).")
+
+    while True:
+        try:
+            time.sleep(180)  # 3 dakika periyot
+
+            subs = load_subscriptions()
+            if not subs:
+                continue
+
+            # Tüm abonelerin favorilediği maç kimliklerini topla
+            all_favs = set()
+            for s in subs:
+                for f in s.get("favorites", []):
+                    if f:
+                        all_favs.add(str(f).strip().lower())
+
+            if not all_favs:
+                continue
+
+            # Canlı oynanan ve favorilerde olan maçları bul
+            live_fav_matches = []
+            for m in list(latest_matches_summary):
+                st = str(m.get("status") or "").strip().lower()
+                # Sadece canlı oynanan maçlar
+                if st not in ("playing", "canlı", "1.yarı", "2.yarı", "uzatma"):
+                    continue
+
+                m_ids = [
+                    str(m.get("id") or ""),
+                    str(m.get("match_id") or ""),
+                    str(m.get("uuid") or ""),
+                    str(m.get("match_uuid") or ""),
+                    str(m.get("home_team") or m.get("home_team_name") or ""),
+                    str(m.get("away_team") or m.get("away_team_name") or "")
+                ]
+                m_ids = [i.strip().lower() for i in m_ids if i]
+
+                if any(ident in all_favs for ident in m_ids):
+                    live_fav_matches.append(m)
+
+            if not live_fav_matches:
+                continue
+
+            log_event(f"🟥 Kırmızı kart kontrolü başlıyor: {len(live_fav_matches)} canlı favori maç taranacak (5 sn aralıkla).")
+
+            for m in live_fav_matches:
+                mid = str(m.get("id") or m.get("match_id") or m.get("uuid") or "")
+                uuid = str(m.get("uuid") or m.get("match_uuid") or "")
+                h_name = str(m.get("home_team") or m.get("home_team_name") or "")
+                a_name = str(m.get("away_team") or m.get("away_team_name") or "")
+
+                if not uuid or not h_name or not a_name:
+                    continue
+
+                card_data = fetch_match_red_cards(h_name, a_name, uuid)
+                new_rc_h = card_data.get("rc_home", 0)
+                new_rc_a = card_data.get("rc_away", 0)
+
+                tracked = live_matches_state.setdefault(mid, {
+                    "home_team": h_name,
+                    "away_team": a_name,
+                    "home_score": m.get("fts_A"),
+                    "away_score": m.get("fts_B"),
+                    "rc_home": 0,
+                    "rc_away": 0,
+                    "notified_scores": set(),
+                    "notified_ht": False,
+                    "notified_ft": False
+                })
+
+                old_rc_h = tracked.get("rc_home", 0)
+                old_rc_a = tracked.get("rc_away", 0)
+
+                all_identifiers = [
+                    mid,
+                    str(m.get("id", "")),
+                    str(m.get("match_id", "")),
+                    uuid,
+                    h_name,
+                    a_name
+                ]
+                all_identifiers = [i for i in all_identifiers if i]
+
+                min_str = f"{m.get('minute')}'" if m.get('minute') else "Canlı"
+                h_score = tracked.get('home_score', m.get('fts_A', 0)) or 0
+                a_score = tracked.get('away_score', m.get('fts_B', 0)) or 0
+
+                # Ev Sahibi Kırmızı Kart
+                if new_rc_h > old_rc_h:
+                    tracked["rc_home"] = new_rc_h
+                    m["rc_A"] = new_rc_h
+                    p_name = ""
+                    for c in card_data.get("cards", []):
+                        if c.get("team") == "A" and c.get("player"):
+                            p_name = f" ({c['player']})"
+                            break
+                    title = f"🟥 Kırmızı Kart! {h_name} ({min_str})"
+                    body = f"{h_name}{p_name} kırmızı kart gördü! ({h_name} {h_score} - {a_score} {a_name})"
+                    log_event(f"KIRMIZI KART: {title} -> {body}")
+                    send_push_for_match(all_identifiers, {
+                        "title": title,
+                        "body": body,
+                        "icon": "icons/icon-192.png",
+                        "tag": f"rc-{mid}-{time.time()}"
+                    })
+
+                # Deplasman Kırmızı Kart
+                if new_rc_a > old_rc_a:
+                    tracked["rc_away"] = new_rc_a
+                    m["rc_B"] = new_rc_a
+                    p_name = ""
+                    for c in card_data.get("cards", []):
+                        if c.get("team") == "B" and c.get("player"):
+                            p_name = f" ({c['player']})"
+                            break
+                    title = f"🟥 Kırmızı Kart! {a_name} ({min_str})"
+                    body = f"{a_name}{p_name} kırmızı kart gördü! ({h_name} {h_score} - {a_score} {a_name})"
+                    log_event(f"KIRMIZI KART: {title} -> {body}")
+                    send_push_for_match(all_identifiers, {
+                        "title": title,
+                        "body": body,
+                        "icon": "icons/icon-192.png",
+                        "tag": f"rc-{mid}-{time.time()}"
+                    })
+
+                # Canlı özette de rc_A / rc_B alanlarını sakla (frontend live-sync için)
+                m["rc_A"] = tracked.get("rc_home", new_rc_h)
+                m["rc_B"] = tracked.get("rc_away", new_rc_a)
+
+                # 5 saniye nefes payı
+                time.sleep(5)
+
+        except Exception as e:
+            log_event(f"Kırmızı kart izleyici döngü hatası: {e}")
+            time.sleep(10)
+
 class RequestHandler(http.server.SimpleHTTPRequestHandler):
     def end_headers(self):
         self.send_header("Access-Control-Allow-Origin", "*")
@@ -1106,6 +1347,10 @@ if __name__ == "__main__":
     # Start keep-alive ping thread
     keepalive_thread = threading.Thread(target=keep_alive_ping, daemon=True)
     keepalive_thread.start()
+
+    # Start periodic red card monitor thread (3m period, 5s stagger)
+    red_card_thread = threading.Thread(target=red_card_monitor_worker, daemon=True)
+    red_card_thread.start()
 
     log_event(f"🚀 FootFollow Web Push Sunucusu Başlatıldı (Port: {PORT})")
 

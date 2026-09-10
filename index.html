@@ -4572,6 +4572,36 @@ var u,f,l,d=String.fromCharCode;t.exports={version:"2.1.2",encode:a,decode:h}},f
       const isLive = isMatchLive(m);
       const isPlayed = isMatchPlayed(m);
 
+      const isFav = favoriteMatchIds.has(mid);
+      const shouldAlert = (currentLiveFilter !== "favorites" || isFav);
+
+      // 1. Gol Sesi (Ekranda görünmese bile favori maç için çalar)
+      if (goalScored && shouldAlert) {
+        playGoalSound();
+      }
+
+      // 2. Kırmızı Kart Sesi & Bildirimi (Ekranda görünmese bile favori maç için çalar)
+      if (redCardTriggered && shouldAlert) {
+        playRedCardSound();
+        if (Notification.permission === "granted") {
+          const minText = m.minute ? `${m.minute}'` : "Canlı";
+          const rcTitle = `🟥 Kırmızı Kart! ${redCardTeam} (${minText})`;
+          const rcBody = `${m.home_team} ${m.home_score !== null ? m.home_score : 0} - ${m.away_score !== null ? m.away_score : 0} ${m.away_team}`;
+          if ("serviceWorker" in navigator && navigator.serviceWorker.controller) {
+            navigator.serviceWorker.ready.then(reg => {
+              reg.showNotification(rcTitle, {
+                body: rcBody,
+                icon: "icons/icon-192.png",
+                tag: `rc-${mid}-${Date.now()}`
+              });
+            });
+          } else {
+            new Notification(rcTitle, { body: rcBody, icon: "icons/icon-192.png" });
+          }
+        }
+      }
+
+      // 3. Görsel Animasyonlar (Sadece ilgili kart DOM'da mevcutsa)
       if (scoreEl) {
         const valEl = document.getElementById(`live-score-val-${mid}`);
         if (valEl) {
@@ -4587,14 +4617,8 @@ var u,f,l,d=String.fromCharCode;t.exports={version:"2.1.2",encode:a,decode:h}},f
           scoreEl.classList.remove("live-active");
         }
 
-        const isFav = favoriteMatchIds.has(mid);
-        const shouldAlert = (currentLiveFilter !== "favorites" || isFav);
-
-        // 1. Gol animasyonu (yeşil neon parlama) ve Bip Sesi
+        // Gol animasyonu (yeşil neon parlama)
         if (goalScored) {
-          if (shouldAlert) {
-            playGoalSound();
-          }
           scoreEl.classList.remove("goal-cancel-flash", "red-card-flash");
           scoreEl.classList.add("goal-flash");
           if (m._flashTimer) clearTimeout(m._flashTimer);
@@ -4603,8 +4627,7 @@ var u,f,l,d=String.fromCharCode;t.exports={version:"2.1.2",encode:a,decode:h}},f
           }, 12000);
         }
 
-        // 2. Gol İptali animasyonu (kırmızı neon parlama) ve İptal Sesi — 2s ertelenmiş onay
-        // _pendingCancelScore yukarıda goalCancelled bloğunda ayarlandı; scoreEl kapatma (closure) burada yapılır
+        // Gol İptali animasyonu (kırmızı neon parlama) ve İptal Sesi — 2s ertelenmiş onay
         if (goalCancelled && m._pendingCancelScore !== undefined) {
           const cancelScoreEl = scoreEl;
           const cancelShouldAlert = shouldAlert;
@@ -4630,27 +4653,8 @@ var u,f,l,d=String.fromCharCode;t.exports={version:"2.1.2",encode:a,decode:h}},f
           }, 2000);
         }
 
-        // 3. Kırmızı Kart animasyonu ve Düdük Sesi
+        // Kırmızı Kart animasyonu (kırmızı yanıp sönme)
         if (redCardTriggered) {
-          if (shouldAlert) {
-            playRedCardSound();
-            if (Notification.permission === "granted") {
-              const minText = m.minute ? `${m.minute}'` : "Canlı";
-              const rcTitle = `🟥 Kırmızı Kart! ${redCardTeam} (${minText})`;
-              const rcBody = `${m.home_team} ${m.home_score !== null ? m.home_score : 0} - ${m.away_score !== null ? m.away_score : 0} ${m.away_team}`;
-              if ("serviceWorker" in navigator && navigator.serviceWorker.controller) {
-                navigator.serviceWorker.ready.then(reg => {
-                  reg.showNotification(rcTitle, {
-                    body: rcBody,
-                    icon: "icons/icon-192.png",
-                    tag: `rc-${mid}-${Date.now()}`
-                  });
-                });
-              } else {
-                new Notification(rcTitle, { body: rcBody, icon: "icons/icon-192.png" });
-              }
-            }
-          }
           scoreEl.classList.remove("goal-flash", "goal-cancel-flash");
           scoreEl.classList.add("red-card-flash");
           if (m._flashTimer) clearTimeout(m._flashTimer);
