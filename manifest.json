@@ -1,7 +1,7 @@
 {
-  "name": "İddaa Takip",
-  "short_name": "İddaaTakip",
-  "description": "16 ligde canlı skorlar, puan durumu ve iddaa oranları",
+  "name": "FootFollow",
+  "short_name": "FootFollow",
+  "description": "16 ligde canlı skorlar, puan durumu ve maç takibi",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
