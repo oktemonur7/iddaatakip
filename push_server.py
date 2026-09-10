@@ -274,9 +274,10 @@ def fetch_match_lineup(home, away, uuid):
     now = time.time()
     if uuid in MATCH_LINEUPS_CACHE:
         cached = MATCH_LINEUPS_CACHE[uuid]
-        # Kadro açıklanmışsa sabah 07:00 döngüsüne kadar kalır (süresiz cache)
+        # Kadro açıklandıysa 10 gün (864,000 saniye) boyunca önbellekte kalsın
         if cached.get("data", {}).get("has_lineup"):
-            return cached["data"]
+            if now - cached.get("time", 0) < 864000:
+                return cached["data"]
         # Kadro henüz açıklanmamışsa çok kısa (30 sn) tutulur, kullanıcı tekrar bastığında tekrar kontrol edilsin
         elif now - cached.get("time", 0) < 30:
             return cached["data"]
@@ -807,8 +808,14 @@ def check_and_reset_subscribers_at_7am():
     if last_7am_reset_date != current_cycle:
         last_7am_reset_date = current_cycle
         try:
-            MATCH_LINEUPS_CACHE.clear()
-            log_event("🌅 Sabah 07:00 sıfırlaması: Kadro önbelleği (MATCH_LINEUPS_CACHE) temizlendi.")
+            # 10 günden (864000 sn) eski kadro verilerini temizle, yenileri koru
+            cutoff = time.time() - 864000
+            expired_keys = [k for k, v in MATCH_LINEUPS_CACHE.items() if v.get("time", 0) < cutoff]
+            for k in expired_keys:
+                MATCH_LINEUPS_CACHE.pop(k, None)
+            if expired_keys:
+                log_event(f"🌅 Sabah 07:00: 10 günden eski {len(expired_keys)} maç kadrosu önbellekten silindi.")
+
             subs = load_subscriptions()
             cleared = 0
             for s in subs:
