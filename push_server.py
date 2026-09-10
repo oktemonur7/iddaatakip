@@ -274,8 +274,11 @@ def fetch_match_lineup(home, away, uuid):
     now = time.time()
     if uuid in MATCH_LINEUPS_CACHE:
         cached = MATCH_LINEUPS_CACHE[uuid]
-        ttl = 1800 if cached.get("data", {}).get("has_lineup") else 180
-        if now - cached.get("time", 0) < ttl:
+        # Kadro açıklanmışsa sabah 07:00 döngüsüne kadar kalır (süresiz cache)
+        if cached.get("data", {}).get("has_lineup"):
+            return cached["data"]
+        # Kadro henüz açıklanmamışsa çok kısa (30 sn) tutulur, kullanıcı tekrar bastığında tekrar kontrol edilsin
+        elif now - cached.get("time", 0) < 30:
             return cached["data"]
 
     slug = f"{to_sahadan_slug(home)}-vs-{to_sahadan_slug(away)}"
@@ -804,6 +807,8 @@ def check_and_reset_subscribers_at_7am():
     if last_7am_reset_date != current_cycle:
         last_7am_reset_date = current_cycle
         try:
+            MATCH_LINEUPS_CACHE.clear()
+            log_event("🌅 Sabah 07:00 sıfırlaması: Kadro önbelleği (MATCH_LINEUPS_CACHE) temizlendi.")
             subs = load_subscriptions()
             cleared = 0
             for s in subs:
