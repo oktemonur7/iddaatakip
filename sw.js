@@ -1,4 +1,4 @@
-const CACHE = "footfollow-v47";
+const CACHE = "footfollow-v48";
 const OFFLINE_ASSETS = [
   "./",
   "./index.html",
