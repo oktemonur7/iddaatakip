@@ -786,6 +786,10 @@ def sahadan_http_sync_worker():
                                                         match_dict["minute"] = old_min
                                                 except (ValueError, TypeError):
                                                     pass
+                                            if tracked.get("rc_home"):
+                                                match_dict["rc_A"] = tracked["rc_home"]
+                                            if tracked.get("rc_away"):
+                                                match_dict["rc_B"] = tracked["rc_away"]
 
                                         new_summary_map[str(mid)] = match_dict
                                         process_match_update(match_dict, is_initial=is_initial_sync, is_from_full_sync=True)
