@@ -2299,9 +2299,17 @@ var u,f,l,d=String.fromCharCode;t.exports={version:"2.1.2",encode:a,decode:h}},f
     }
 
     function onAppResume() {
+      if (!isAppInitialized) {
+        initApp();
+        return;
+      }
       checkAndResetFavoritesAt7AM();
       if (typeof tickLiveMinutes === "function") tickLiveMinutes();
       if (typeof renderLiveScores === "function") renderLiveScores();
+      const standingsEl = document.getElementById("standings-content");
+      if (standingsEl && (standingsEl.querySelector(".loading-state") || !standingsEl.querySelector("table"))) {
+        if (typeof loadCurrentLeague === "function") loadCurrentLeague();
+      }
       if (typeof pollLiveScoresFromServer === "function") {
         pollLiveScoresFromServer(true);
       }
@@ -2432,7 +2440,15 @@ var u,f,l,d=String.fromCharCode;t.exports={version:"2.1.2",encode:a,decode:h}},f
       }
     }
 
+    let isAppInitialized = false;
     function initApp() {
+      if (isAppInitialized) {
+        try { loadCurrentLeague(); } catch (e) {}
+        try { renderLiveScores(); } catch (e) {}
+        return;
+      }
+      isAppInitialized = true;
+
       // Index matches (hem numeric match_id hem uuid ile eşleşebilmesi için)
       liveScoresList.forEach(m => {
         if (m.match_id != null) {
@@ -2513,6 +2529,7 @@ var u,f,l,d=String.fromCharCode;t.exports={version:"2.1.2",encode:a,decode:h}},f
         btnLeagues.classList.add("active");
         btnLive.classList.remove("active");
         leagueSelector.style.display = "flex";
+        try { loadCurrentLeague(); } catch (e) {}
       } else {
         leaguesView.style.display = "none";
         liveView.style.display = "flex";
@@ -5021,7 +5038,15 @@ var u,f,l,d=String.fromCharCode;t.exports={version:"2.1.2",encode:a,decode:h}},f
       }
     }
 
-    window.addEventListener("DOMContentLoaded", initApp);
+    // DOMContentLoaded kaçırılma koruması (PWA / Cache ile açıldığında readyState zaten interactive veya complete olabilir)
+    if (document.readyState === "loading") {
+      window.addEventListener("DOMContentLoaded", initApp);
+    } else {
+      initApp();
+    }
+    window.addEventListener("load", () => {
+      if (!isAppInitialized) initApp();
+    });
   </script>
 
   <!-- BİLDİRİM AYARLARI MODAL -->

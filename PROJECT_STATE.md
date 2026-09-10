@@ -41,3 +41,9 @@
    - Gol sonrası bayat paket filtreleme süresinin (jitter koruması) hem `push_server.py` hem de `index.html` içinde 120 saniye (2 dakika) olarak tanımlandığı ve bu yüzden VAR gol iptallerini tam 2 dakika boyunca bloke ettiği tespit edildi.
    - Jitter koruma süresi 120 saniyeden 6 saniyeye çekildi. Hakem golü iptal edip Sahadan skoru düşürdüğü an sistem gecikmesiz olarak golü iptal eder, kırmızı neon flaş ve iptal sesini çalar.
 
+8. **PWA İlk Açılışta Puan Durumu ve Fikstür Yüklenememe Sorunu Çözüldü:**
+   - iPhone ve Mac PWA'larında uygulama ilk açıldığında `index.html` önbellekten (Service Worker Cache) hızlı geldiği için scriptler değerlendirilirken `document.readyState` çoktan `"interactive"` veya `"complete"` aşamasına geçmiş oluyordu.
+   - Tüm ilk arayüz kurulumu (`initApp`, `loadCurrentLeague`, `renderStandings`, `renderFixture`) doğrudan `window.addEventListener("DOMContentLoaded", initApp);` dinleyicisine bağlı olduğu için `DOMContentLoaded` olayı kaçırılıyor ve tetiklenmiyordu.
+   - `pageshow` ve `focus` eventleri çalıştığında ise `onAppResume` yalnızca `renderLiveScores()` çağırdığından, Ligler sekmesindeki puan durumu ve fikstür `<div class="loading-state">Puan durumu yükleniyor...</div>` durumunda asılı kalıyordu.
+   - `document.readyState === "loading"` kontrolü eklendi; belge zaten yüklenmişse `initApp()` anında çalıştırılacak ve ayrıca yedek `window.addEventListener("load", ...)` koruması ile `switchMainView("leagues")` anında çağrılacak şekilde güncellendi.
+   - Service Worker önbelleği `iddaatakip-v46` sürümüne yükseltildi.
