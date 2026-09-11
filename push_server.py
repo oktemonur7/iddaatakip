@@ -283,18 +283,48 @@ def fetch_match_lineup(home, away, uuid):
             return cached["data"]
 
     slug = f"{to_sahadan_slug(home)}-vs-{to_sahadan_slug(away)}"
-    ts_bust = int(now * 1000)
-    url = f"https://www.sahadan.com/mac/{slug}/{uuid}?_t={ts_bust}"
+    url = f"https://www.sahadan.com/mac/{slug}/{uuid}"
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
+        "Accept-Language": "tr-TR,tr;q=0.9,en-US;q=0.8,en;q=0.7",
+        "Referer": "https://www.sahadan.com/",
+        "Sec-Ch-Ua": '"Chromium";v="124", "Google Chrome";v="124", "Not-A.Brand";v="99"',
+        "Sec-Ch-Ua-Mobile": "?0",
+        "Sec-Ch-Ua-Platform": '"macOS"',
+        "Sec-Fetch-Dest": "document",
+        "Sec-Fetch-Mode": "navigate",
+        "Sec-Fetch-Site": "same-origin"
+    }
+
+    html = None
+    for attempt in range(2):
+        try:
+            req = urllib.request.Request(url, headers=headers)
+            html = urllib.request.urlopen(req, timeout=9).read().decode("utf-8")
+            break
+        except urllib.error.HTTPError as he:
+            if he.code == 429 and attempt == 0:
+                time.sleep(1.2)
+                continue
+            log_event(f"Kadro çekme HTTP hatası ({slug}): {he.code} {he.reason}")
+            if he.code == 429:
+                return {"success": False, "has_lineup": False, "message": "Sahadan sunucuları anlık yoğun. Lütfen birkaç saniye sonra tekrar deneyin."}
+            return {"success": False, "has_lineup": False, "message": f"Kadro bilgisi alınamadı (HTTP {he.code})."}
+        except Exception as e:
+            if attempt == 0:
+                time.sleep(0.5)
+                continue
+            log_event(f"Kadro çekme hatası ({slug}): {e}")
+            return {"success": False, "has_lineup": False, "message": "Kadro yüklenirken bağlantı hatası oluştu."}
+
+    if not html:
+        return {"success": False, "has_lineup": False, "message": "Kadro bilgisi alınamadı."}
+
     try:
-        req = urllib.request.Request(url, headers={
-            "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-            "Accept-Language": "tr-TR,tr;q=0.9",
-            "Cache-Control": "no-cache"
-        })
-        html = urllib.request.urlopen(req, timeout=8).read().decode("utf-8")
         m = re.search(r'<script[^>]*id=\"__NUXT_DATA__\"[^>]*>(.*?)</script>', html)
         if not m:
-            res = {"success": True, "has_lineup": False, "message": "Kadro bilgisi bulunamadı."}
+            res = {"success": True, "has_lineup": False, "message": "Bu maç için kadro bilgisi henüz mevcut değil."}
             MATCH_LINEUPS_CACHE[uuid] = {"data": res, "time": now}
             return res
 

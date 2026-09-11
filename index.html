@@ -3153,7 +3153,8 @@ var u,f,l,d=String.fromCharCode;t.exports={version:"2.1.2",encode:a,decode:h}},f
           : "";
 
         if (hasGoalTooltip && mUuid && !preloadedGoals) {
-          setTimeout(() => prefetchGoalsForMatch(mUuid, hName, aName, totalExpectedGoals), 100);
+          // Otomatik toplu istek (prefetch) Sahadan rate limitini (429) tetiklediği için kaldırıldı.
+          // Golcüler yalnızca kullanıcı skora tıkladığında/üzerine geldiğinde on-demand yüklenir.
         }
 
         let centerContent = "";
@@ -4421,7 +4422,7 @@ var u,f,l,d=String.fromCharCode;t.exports={version:"2.1.2",encode:a,decode:h}},f
           preloadedGoals = null;
         }
         if (totalExpectedGoals > 0 && !preloadedGoals && mUuid) {
-          setTimeout(() => prefetchGoalsForMatch(mUuid, m.home_team, m.away_team, totalExpectedGoals), 100);
+          // Otomatik toplu istek (prefetch) Sahadan rate limitini (429) tetiklediği için kaldırıldı.
         }
         goalHoverAttr = `onmouseenter="loadScoreGoalTooltip(this, '${mUuid}', '${hEsc}', '${aEsc}')"`;
         goalTooltipHtml = (preloadedGoals && preloadedGoals.length > 0)
