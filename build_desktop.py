@@ -123,6 +123,49 @@ LEAGUES = [
         "name": "Chance Liga",
         "country": "Çekya",
         "url": "https://www.sahadan.com/lig/czech-liga/bu1l7ckihyr0errxw61p0m05?round_id=95226"
+    },
+    {
+        "id": "fa-cup",
+        "name": "FA Cup",
+        "country": "İngiltere",
+        "url": "https://www.sahadan.com/lig/fa-cup/2hj3286pqov1g1g59k2t2qcgm/fikstur",
+        "min_date": "2026-11-15"
+    },
+    {
+        "id": "lig-kupasi",
+        "name": "Lig Kupası",
+        "country": "İngiltere",
+        "url": "https://www.sahadan.com/lig/lig-kupasi/725gd73msyt08xm76v7gkxj7u/fikstur"
+    },
+    {
+        "id": "kral-kupasi",
+        "name": "Kral Kupası",
+        "country": "İspanya",
+        "url": "https://www.sahadan.com/lig/kral-kupasi/apdwh753fupxheygs8seahh7x/fikstur"
+    },
+    {
+        "id": "coppa-italia",
+        "name": "İtalya Kupası",
+        "country": "İtalya",
+        "url": "https://www.sahadan.com/lig/coppa-italia/6694fff47wqxl10lrd9tb91f8/fikstur"
+    },
+    {
+        "id": "fransa-kupasi",
+        "name": "Fransa Kupası",
+        "country": "Fransa",
+        "url": "https://www.sahadan.com/lig/kupa/3n9mk5b2mxmq831wfmv6pu86i/fikstur"
+    },
+    {
+        "id": "almanya-kupasi",
+        "name": "Almanya Kupası",
+        "country": "Almanya",
+        "url": "https://www.sahadan.com/lig/kupa/486rhdgz7yc0sygziht7hje65/fikstur"
+    },
+    {
+        "id": "turkiye-kupasi",
+        "name": "Ziraat Türkiye Kupası",
+        "country": "Türkiye",
+        "url": "https://www.sahadan.com/lig/ziraat-turkiye-kupasi/7af85xa75vozt2l4hzi6ryts7/fikstur"
     }
 ]
 
@@ -134,7 +177,7 @@ DESKTOP_HTML = "/Users/onur/Desktop/futbol_ligleri.html"
 TEMPLATE_HTML = os.path.join(APP_DIR, "index.html")
 OUTPUT_HTML = os.path.join(APP_DIR, "dist", "index.html")  # GitHub Pages çıktısı
 
-def parse_sahadan_league(target_url, max_retries=3):
+def parse_sahadan_league(target_url, min_date=None, max_retries=3):
     clean_url = target_url.strip().replace("\u2028", "").replace("\u2029", "")
     
     for attempt in range(max_retries):
@@ -181,8 +224,8 @@ def parse_sahadan_league(target_url, max_retries=3):
                     comp_data = root_data[comp_keys[0]]
 
                     # Standings
-                    rankings = comp_data.get("rankings", {})
-                    total_table = rankings.get("total", [{}])[0].get("table", [])
+                    rankings = comp_data.get("rankings", {}) or {}
+                    total_table = rankings.get("total", [{}])[0].get("table", []) if isinstance(rankings.get("total"), list) and len(rankings.get("total")) > 0 else []
                     clean_standings = []
                     for row in total_table:
                         team = row.get("team", {}) or {}
@@ -208,19 +251,24 @@ def parse_sahadan_league(target_url, max_retries=3):
 
                     # Weeks / Fixtures
                     clean_weeks = []
-                    gamesets = comp_data.get("gamesets", [])
+                    gamesets = comp_data.get("gamesets", []) or []
                     
                     for idx, gs in enumerate(gamesets):
                         week_num = gs.get("name")
                         matches = []
                         for m in gs.get("matches", []):
+                            m_dt = m.get("date_time_utc")
+                            if min_date and m_dt:
+                                dt_str = str(m_dt)[:10]
+                                if dt_str < min_date:
+                                    continue
                             tA = m.get("team_A", {}) or {}
                             tB = m.get("team_B", {}) or {}
                             st = m.get("status", "")
                             matches.append({
                                 "id": m.get("id"),
                                 "uuid": m.get("uuid"),
-                                "date_time": m.get("date_time_utc"),
+                                "date_time": m_dt,
                                 "match_time": m.get("match_time"),
                                 "status": st,
                                 "home_team": {
@@ -240,10 +288,11 @@ def parse_sahadan_league(target_url, max_retries=3):
                                 "half_time_home": m.get("hts_A"),
                                 "half_time_away": m.get("hts_B")
                             })
-                        clean_weeks.append({
-                            "week": week_num,
-                            "matches": matches
-                        })
+                        if matches or not min_date:
+                            clean_weeks.append({
+                                "week": week_num,
+                                "matches": matches
+                            })
 
                     # Calculate real current active week:
                     # 1. Prefer week with 'Playing' or 'Live'
@@ -297,9 +346,11 @@ def fetch_live_scores_today():
     print(f"Sahadan.com üzerinden günün canlı maçları ({len(LEAGUES)} Lig/Kupa) taranıyor...")
     league_uuids = {}
     for l in LEAGUES:
-        url_path = l["url"].split("?")[0]
-        uuid = url_path.split("/")[-1]
-        league_uuids[uuid] = l
+        url_path = l["url"].split("?")[0].rstrip("/")
+        parts = [p for p in url_path.split("/") if p and p != "fikstur"]
+        if parts:
+            uuid = parts[-1]
+            league_uuids[uuid] = l
 
     today_matches = []
     seen_match_ids = set()
@@ -880,13 +931,14 @@ def build_desktop_html():
         name = l["name"]
         country = l["country"]
         url = l["url"]
+        min_date = l.get("min_date")
 
-        data = parse_sahadan_league(url)
-        if data and len(data.get("standings", [])) > 0:
+        data = parse_sahadan_league(url, min_date=min_date)
+        if data and (len(data.get("standings", [])) > 0 or len(data.get("weeks", [])) > 0 or "kupa" in lid or "cup" in lid):
             cached_data[lid] = data
-            s_count = len(data["standings"])
-            w_count = len(data["weeks"])
-            print(f" ✓ {name} ({country}): {s_count} Takım, {w_count} Hafta")
+            s_count = len(data.get("standings", []))
+            w_count = len(data.get("weeks", []))
+            print(f" ✓ {name} ({country}): {s_count} Takım, {w_count} Hafta/Tur")
         else:
             if lid in cached_data:
                 print(f" ! {name} ({country}): Canlı bağlantı gecikti, kayıtlı veri korundu.")
@@ -894,11 +946,17 @@ def build_desktop_html():
                 print(f" ✗ {name} ({country}): Alınamadı!")
         time.sleep(0.3)
 
-    # Collect all team names across leagues to optimize iddaa querying
+    # Collect all team names across leagues and cups to optimize iddaa querying
     all_target_teams = set()
     for lid, ldata in cached_data.items():
         for s in ldata.get("standings", []):
             all_target_teams.add(norm_team_name(s.get("name", "")))
+        for w in ldata.get("weeks", []):
+            for m in w.get("matches", []):
+                h = m.get("home_team", {}).get("name")
+                a = m.get("away_team", {}).get("name")
+                if h: all_target_teams.add(norm_team_name(h))
+                if a: all_target_teams.add(norm_team_name(a))
 
     # İddaa oranlarını çek ve eşleştir
     clean_odds_dict = fetch_iddaa_odds(all_target_teams)
