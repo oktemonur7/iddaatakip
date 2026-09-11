@@ -1,4 +1,4 @@
-const CACHE = "footfollow-v48";
+const CACHE = "footflow-v49";
 const OFFLINE_ASSETS = [
   "./",
   "./index.html",
@@ -93,7 +93,7 @@ self.addEventListener("fetch", e => {
 // PWA WEB PUSH NOTIFICATION HANDLERS
 self.addEventListener("push", e => {
   let data = {
-    title: "FootFollow",
+    title: "FootFlow",
     body: "Canlı maç güncellemesi",
     icon: "icons/icon-192.png",
     badge: "icons/icon-192.png",
@@ -115,11 +115,11 @@ self.addEventListener("push", e => {
     badge: data.badge || "icons/icon-192.png",
     vibrate: [250, 100, 250, 100, 250],
     data: { url: data.url || "./" },
-    tag: data.tag || ("footfollow-" + Date.now()),
+    tag: data.tag || ("footflow-" + Date.now()),
     renotify: true
   };
 
-  const title = data.title || "FootFollow";
+  const title = data.title || "FootFlow";
 
   e.waitUntil(
     self.registration.showNotification(title, options)

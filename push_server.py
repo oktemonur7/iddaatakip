@@ -1540,7 +1540,7 @@ if __name__ == "__main__":
     red_card_thread = threading.Thread(target=red_card_monitor_worker, daemon=True)
     red_card_thread.start()
 
-    log_event(f"🚀 FootFollow Web Push Sunucusu Başlatıldı (Port: {PORT})")
+    log_event(f"🚀 FootFlow Web Push Sunucusu Başlatıldı (Port: {PORT})")
 
     class ThreadedTCPServer(socketserver.ThreadingMixIn, socketserver.TCPServer):
         daemon_threads = True
