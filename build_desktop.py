@@ -1037,7 +1037,7 @@ def build_desktop_html():
             tv_cache_dict = {}
 
     # TV kanalı henüz bulunamamış güncel aktif hafta maçlarını tespit et (Öncelikle Şampiyonlar Ligi, Avrupa Kupaları ve Majör Ligler)
-    priority_order = ["sampiyonlar-ligi", "avrupa-ligi", "konferans-ligi", "trendyol-super-lig", "premier-lig-en", "laliga", "serie-a", "bundesliga", "ligue-1"]
+    priority_order = ["sampiyonlar-ligi", "avrupa-ligi", "konferans-ligi", "super-lig-tr", "premier-lig-en", "laliga", "serie-a", "bundesliga", "ligue-1"]
     ordered_lids = [lid for lid in priority_order if lid in cached_data] + [lid for lid in cached_data if lid not in priority_order]
 
     matches_needing_tv = []
