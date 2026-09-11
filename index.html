@@ -2210,7 +2210,7 @@ var u,f,l,d=String.fromCharCode;t.exports={version:"2.1.2",encode:a,decode:h}},f
     }
 
     .lineup-pitch-container {
-      padding: 12px;
+      padding: 14px 12px 16px;
       display: flex;
       flex-direction: column;
       align-items: center;
@@ -2218,58 +2218,10 @@ var u,f,l,d=String.fromCharCode;t.exports={version:"2.1.2",encode:a,decode:h}},f
       box-sizing: border-box;
     }
 
-    .lineup-team-banner {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      width: 100%;
-      padding: 8px 12px;
-      background: rgba(255, 255, 255, 0.04);
-      border: 1px solid rgba(255, 255, 255, 0.07);
-      border-radius: 8px;
-      margin-bottom: 10px;
-      box-sizing: border-box;
-    }
-
-    .lineup-team-info {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      font-size: 0.82rem;
-      font-weight: 700;
-      overflow: hidden;
-    }
-
-    .lineup-team-info span:nth-child(2) {
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-      max-width: 120px;
-    }
-
-    .lineup-team-info.home {
-      color: #38bdf8;
-    }
-
-    .lineup-team-info.away {
-      color: #fbbf24;
-    }
-
-    .lineup-formation-tag {
-      font-size: 0.70rem;
-      font-weight: 600;
-      color: #94a3b8;
-      background: rgba(0, 0, 0, 0.4);
-      padding: 2px 6px;
-      border-radius: 4px;
-      border: 1px solid rgba(255, 255, 255, 0.08);
-      white-space: nowrap;
-    }
-
     .lineup-pitch {
       position: relative;
       width: 100%;
-      height: 480px;
+      height: 500px;
       background: #15803d;
       background: linear-gradient(180deg, #14532d 0%, #166534 50%, #14532d 100%);
       border: 2px solid rgba(255, 255, 255, 0.85);
@@ -4302,14 +4254,10 @@ var u,f,l,d=String.fromCharCode;t.exports={version:"2.1.2",encode:a,decode:h}},f
     function renderLineupPitch(data, fallbackHome, fallbackAway, containerEl) {
       const tA = data.team_A || {};
       const tB = data.team_B || {};
-      const homeName = tA.name || fallbackHome || 'Ev Sahibi';
-      const awayName = tB.name || fallbackAway || 'Deplasman';
-      const homeForm = tA.formation || '';
-      const awayForm = tB.formation || '';
       const homePlayers = Array.isArray(tA.players) ? tA.players : [];
       const awayPlayers = Array.isArray(tB.players) ? tB.players : [];
-      const pitchUsableHeight = 47;
-      const pitchTopOffset   = 3;
+      const pitchUsableHeight = 44;
+      const pitchTopOffset   = 3.5;
 
       function sName(n) { return (n || '').split(' ').slice(-1)[0]; }
 
@@ -4320,18 +4268,13 @@ var u,f,l,d=String.fromCharCode;t.exports={version:"2.1.2",encode:a,decode:h}},f
       }).join('');
 
       const awayHtml = awayPlayers.map(function(p) {
-        var b = pitchTopOffset + (p.y / 100) * pitchUsableHeight;
+        var t = 100 - pitchTopOffset - (p.y / 100) * pitchUsableHeight;
         var l = 100 - p.x;
-        return '<div class="pitch-player team-away" style="bottom:' + b.toFixed(1) + '%;left:' + l.toFixed(1) + '%;"><div class="pitch-player-dot"></div><span class="pitch-player-name">' + sName(p.name) + '</span></div>';
+        return '<div class="pitch-player team-away" style="top:' + t.toFixed(1) + '%;left:' + l.toFixed(1) + '%;"><div class="pitch-player-dot"></div><span class="pitch-player-name">' + sName(p.name) + '</span></div>';
       }).join('');
 
       containerEl.innerHTML =
         '<div class="lineup-pitch-container">' +
-          '<div class="lineup-team-banner">' +
-            '<div class="lineup-team-info home"><span>🔵</span><span title="' + homeName + '">' + homeName + '</span>' + (homeForm ? '<span class="lineup-formation-tag">' + homeForm + '</span>' : '') + '</div>' +
-            '<div style="color:#475569;font-size:0.7rem;font-weight:600;">VS</div>' +
-            '<div class="lineup-team-info away" style="justify-content:flex-end;">' + (awayForm ? '<span class="lineup-formation-tag">' + awayForm + '</span>' : '') + '<span title="' + awayName + '">' + awayName + '</span><span>🟡</span></div>' +
-          '</div>' +
           '<div class="lineup-pitch">' +
             '<div class="pitch-line-center"></div>' +
             '<div class="pitch-circle-center"></div>' +
