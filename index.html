@@ -4994,6 +4994,16 @@ var u,f,l,d=String.fromCharCode;t.exports={version:"2.1.2",encode:a,decode:h}},f
       const nowTs = Date.now();
       const lastGoalTime = m._lastGoalTime || 0;
 
+      // İptal Edilen Skorlar Karantinası (90 saniyelik Cooldown / Tombstone)
+      if (!m._cancelledScoresCooldown) m._cancelledScoresCooldown = {};
+      for (const scKey in m._cancelledScoresCooldown) {
+        if (nowTs >= m._cancelledScoresCooldown[scKey]) {
+          delete m._cancelledScoresCooldown[scKey];
+        }
+      }
+
+      let oldScoreBeforeCancel = null;
+
       // Skor kontrolü - Ev Sahibi
       if (update.fts_A !== undefined && update.fts_A !== null) {
         let newHome = parseInt(update.fts_A, 10);
@@ -5005,6 +5015,7 @@ var u,f,l,d=String.fromCharCode;t.exports={version:"2.1.2",encode:a,decode:h}},f
             newHome = oldHome; // İlk 15 saniye içindeki anlık paket dalgalanmasını engelle
           } else if (!isInitialSync) {
             goalCancelled = true;
+            oldScoreBeforeCancel = `${oldHome}-${m.away_score !== null && m.away_score !== undefined ? m.away_score : 0}`;
           }
         }
 
@@ -5027,6 +5038,7 @@ var u,f,l,d=String.fromCharCode;t.exports={version:"2.1.2",encode:a,decode:h}},f
             newAway = oldAway; // İlk 15 saniye içindeki anlık paket dalgalanmasını engelle
           } else if (!isInitialSync) {
             goalCancelled = true;
+            oldScoreBeforeCancel = `${m.home_score !== null && m.home_score !== undefined ? m.home_score : 0}-${oldAway}`;
           }
         }
 
@@ -5038,11 +5050,12 @@ var u,f,l,d=String.fromCharCode;t.exports={version:"2.1.2",encode:a,decode:h}},f
         m.away_score = newAway;
       }
 
-      // Skor Çift Ses Önleme (Deduplication)
+      // Skor Çift Ses Önleme & 90s İptal Karantinası (Deduplication & Cooldown)
       const currentScoreKey = `${m.home_score}-${m.away_score}`;
+      const isInCancelCooldown = !!m._cancelledScoresCooldown[currentScoreKey];
       if (goalScored) {
-        if (m._notifiedScores.has(currentScoreKey)) {
-          // Bu skor için zaten ses çaldı ve animasyon başladı, mükerrer sesi engelle!
+        if (isInCancelCooldown || m._notifiedScores.has(currentScoreKey)) {
+          // Bu skor ya zaten bildirildi ya da 90 saniye içinde iptal edildi (bayat paket jitter engelle)
           goalScored = false;
         } else {
           m._notifiedScores.add(currentScoreKey);
@@ -5085,7 +5098,6 @@ var u,f,l,d=String.fromCharCode;t.exports={version:"2.1.2",encode:a,decode:h}},f
       }
 
       // Ertelenmiş İptal Mekanizması: Anlık skor düşüşü gerçek VAR mı yoksa jitter mı?
-      // _pendingCancelScore'u kaydet; gerçek timer scoreEl referansına sahip DOM bloğunda kurulur
       if (goalCancelled) {
         const cancelScore = `${m.home_score}-${m.away_score}`;
         // Önceki bekleyen bir iptal varsa iptal et
@@ -5094,7 +5106,7 @@ var u,f,l,d=String.fromCharCode;t.exports={version:"2.1.2",encode:a,decode:h}},f
           delete m._pendingCancelTimer;
         }
         m._pendingCancelScore = cancelScore;
-        // Timer, scoreEl'e sahip DOM bloğunda (aşağıda) kurulacak
+        m._pendingCancelOldScore = oldScoreBeforeCancel;
       }
 
 
@@ -5234,7 +5246,39 @@ var u,f,l,d=String.fromCharCode;t.exports={version:"2.1.2",encode:a,decode:h}},f
         }
       }
 
-      // 3. Görsel Animasyonlar (Sadece ilgili kart DOM'da mevcutsa)
+      // 3. Gol İptali Onayı ve Sesi — 2s ertelenmiş onay + 90s cooldown karantinası
+      if (goalCancelled && m._pendingCancelScore !== undefined) {
+        const cancelShouldAlert = shouldAlert;
+        m._pendingCancelTimer = setTimeout(() => {
+          const currentNow = `${m.home_score}-${m.away_score}`;
+          if (m._pendingCancelScore === currentNow) {
+            // Gerçek VAR iptali onaylandı: 2s sonra hâlâ aynı (düşük) skor
+            // İptal edilen eski skoru 90 saniye karantinaya al (bayat paket dalgalanmalarını engelle)
+            if (m._pendingCancelOldScore) {
+              if (!m._cancelledScoresCooldown) m._cancelledScoresCooldown = {};
+              m._cancelledScoresCooldown[m._pendingCancelOldScore] = Date.now() + 90000;
+            }
+            delete m._pendingCancelScore;
+            delete m._pendingCancelOldScore;
+
+            if (cancelShouldAlert) {
+              playCancelSound();
+            }
+            const activeScoreEl = document.getElementById(`live-score-${mid}`);
+            if (activeScoreEl) {
+              activeScoreEl.classList.remove("goal-flash", "red-card-flash");
+              activeScoreEl.classList.add("goal-cancel-flash");
+              if (m._flashTimer) clearTimeout(m._flashTimer);
+              m._flashTimer = setTimeout(() => {
+                if (activeScoreEl) activeScoreEl.classList.remove("goal-cancel-flash");
+              }, 10000);
+            }
+          }
+          delete m._pendingCancelTimer;
+        }, 2000);
+      }
+
+      // 4. Görsel Animasyonlar ve DOM güncellemeleri (Sadece ilgili kart DOM'da mevcutsa)
       if (scoreEl) {
         const valEl = document.getElementById(`live-score-val-${mid}`);
         if (valEl) {
@@ -5274,32 +5318,6 @@ var u,f,l,d=String.fromCharCode;t.exports={version:"2.1.2",encode:a,decode:h}},f
           m._flashTimer = setTimeout(() => {
             if (scoreEl) scoreEl.classList.remove("goal-flash");
           }, 12000);
-        }
-
-        // Gol İptali animasyonu (kırmızı neon parlama) ve İptal Sesi — 2s ertelenmiş onay
-        if (goalCancelled && m._pendingCancelScore !== undefined) {
-          const cancelScoreEl = scoreEl;
-          const cancelShouldAlert = shouldAlert;
-          m._pendingCancelTimer = setTimeout(() => {
-            const currentNow = `${m.home_score}-${m.away_score}`;
-            if (m._pendingCancelScore === currentNow) {
-              // Gerçek VAR iptali onaylandı: 2s sonra hâlâ aynı (düşük) skor
-              m._notifiedScores.clear();
-              delete m._pendingCancelScore;
-              if (cancelShouldAlert) {
-                playCancelSound();
-              }
-              if (cancelScoreEl) {
-                cancelScoreEl.classList.remove("goal-flash", "red-card-flash");
-                cancelScoreEl.classList.add("goal-cancel-flash");
-                if (m._flashTimer) clearTimeout(m._flashTimer);
-                m._flashTimer = setTimeout(() => {
-                  if (cancelScoreEl) cancelScoreEl.classList.remove("goal-cancel-flash");
-                }, 10000);
-              }
-            }
-            delete m._pendingCancelTimer;
-          }, 2000);
         }
 
         // Kırmızı Kart animasyonu (kırmızı yanıp sönme)

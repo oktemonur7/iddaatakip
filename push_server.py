@@ -685,6 +685,16 @@ def process_match_update(update, is_initial=False, is_from_full_sync=False):
     now_ts = time.time()
     last_goal_time = m.get("last_goal_time", 0)
 
+    # İptal Edilen Skorlar Karantinası (90 saniyelik Cooldown / Tombstone)
+    if "cancelled_scores_cooldown" not in m:
+        m["cancelled_scores_cooldown"] = {}
+    
+    # 90 saniyesi dolmuş eski karantina kayıtlarını temizle
+    m["cancelled_scores_cooldown"] = {
+        sc: exp_time for sc, exp_time in m["cancelled_scores_cooldown"].items()
+        if now_ts < exp_time
+    }
+
     if new_h is not None and m["home_score"] is not None and new_h < m["home_score"]:
         # Gol sonrası 15 saniye boyunca dalgalanma/bayat paket koruması (15s sonrasındaki düşüşler gerçek VAR gol iptalidir)
         if (now_ts - last_goal_time) < 15:
@@ -704,10 +714,14 @@ def process_match_update(update, is_initial=False, is_from_full_sync=False):
         cancel_title = f"❌ GOL İPTAL!{team_str}"
         cancel_body = f"{m['home_team']} {new_h} - {new_a} {m['away_team']}"
         log_event(f"GOL İPTAL EDİLDİ: {cancel_title} -> {cancel_body}")
+        
+        # İptal edilen eski skoru kaydet (örn. (1, 0))
+        old_score_pair = (m["home_score"], m["away_score"])
+        # 90 saniye boyunca bu skora geri dönülse dahi (bayat/dalgalı paket) tekrar GOL bildirimi tetiklenmesini engelle
+        m["cancelled_scores_cooldown"][old_score_pair] = now_ts + 90
+
         m["home_score"] = new_h
         m["away_score"] = new_a
-        # Eski skoru notified_scores'tan temizle ki sonradan tekrar atılırsa bildirim gidebilsin
-        m["notified_scores"] = {s for s in m["notified_scores"] if s[0] <= new_h and s[1] <= new_a}
         send_push_for_match(all_identifiers, {
             "title": cancel_title,
             "body": cancel_body,
@@ -729,9 +743,12 @@ def process_match_update(update, is_initial=False, is_from_full_sync=False):
             m["last_goal_time"] = now_ts
         m["away_score"] = new_a
 
-    # DEDUPLICATION: Aynı skor için arka arkaya tekrar bildirim gitmesini engelle
+    # DEDUPLICATION & COOLDOWN: 
+    # 1. Aynı skor için daha önce bildirim gitmişse TEKRAR BİLDİRİM GİTMEZ.
+    # 2. Skor son 90 saniye içinde VAR ile İPTAL EDİLMİŞSE bayat paket dalgalanması engellenir.
     score_pair = (m["home_score"], m["away_score"])
-    if goal_scored and score_pair not in m["notified_scores"]:
+    is_in_cancel_cooldown = score_pair in m.get("cancelled_scores_cooldown", {})
+    if goal_scored and not is_in_cancel_cooldown and score_pair not in m["notified_scores"]:
         m["notified_scores"].add(score_pair)
         min_str = f"{m['minute']}'" if m["minute"] else "Canlı"
         team_str = f" {goal_team}" if goal_team else ""
