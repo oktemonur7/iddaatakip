@@ -134,7 +134,7 @@ var u,f,l,d=String.fromCharCode;t.exports={version:"2.1.2",encode:a,decode:h}},f
       padding: 5px 14px;
       box-shadow: 0 0 12px rgba(0, 255, 133, 0.1);
       flex-shrink: 0;
-      max-width: 320px;
+      max-width: 410px;
       box-sizing: border-box;
     }
 
@@ -464,6 +464,60 @@ var u,f,l,d=String.fromCharCode;t.exports={version:"2.1.2",encode:a,decode:h}},f
     }
     .today-toggle input:checked ~ .today-toggle-text,
     .today-toggle:has(input:checked) .today-toggle-text {
+      color: #00ff85;
+    }
+
+    /* LEAGUE SELECT BUGÜN TOGGLE */
+    .league-today-toggle {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      cursor: pointer;
+      user-select: none;
+      margin-left: 6px;
+      padding-left: 8px;
+      border-left: 1px solid rgba(255, 255, 255, 0.12);
+      flex-shrink: 0;
+    }
+    .league-today-toggle input[type="checkbox"] { display: none; }
+    .league-today-slider {
+      position: relative;
+      width: 26px;
+      height: 15px;
+      background: rgba(255, 255, 255, 0.15);
+      border-radius: 999px;
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      transition: background 0.2s, border-color 0.2s;
+      flex-shrink: 0;
+    }
+    .league-today-slider::after {
+      content: '';
+      position: absolute;
+      top: 1.5px;
+      left: 2px;
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: #aaa;
+      transition: transform 0.2s, background 0.2s;
+    }
+    .league-today-toggle input:checked ~ .league-today-slider {
+      background: rgba(0, 255, 133, 0.25);
+      border-color: #00ff85;
+    }
+    .league-today-toggle input:checked ~ .league-today-slider::after {
+      transform: translateX(10px);
+      background: #00ff85;
+    }
+    .league-today-text {
+      font-size: 0.74rem;
+      font-weight: 700;
+      color: rgba(255, 255, 255, 0.6);
+      letter-spacing: 0.02em;
+      white-space: nowrap;
+    }
+    .league-today-toggle input:checked ~ .league-today-text,
+    .league-today-toggle:has(input:checked) .league-today-text {
       color: #00ff85;
     }
 
@@ -2392,6 +2446,11 @@ var u,f,l,d=String.fromCharCode;t.exports={version:"2.1.2",encode:a,decode:h}},f
         <select class="league-selector" id="league-select" onchange="onLeagueChanged(this.value)">
           <!-- JS ile dinamik dolacak -->
         </select>
+        <label class="league-today-toggle" title="Sadece bugün maçı olan ligleri göster">
+          <input type="checkbox" id="league-today-checkbox" onchange="toggleLeagueTodayFilter(this.checked)">
+          <span class="league-today-slider"></span>
+          <span class="league-today-text">Bugün</span>
+        </label>
       </div>
     </header>
 
@@ -2472,7 +2531,8 @@ var u,f,l,d=String.fromCharCode;t.exports={version:"2.1.2",encode:a,decode:h}},f
     let currentLeagueId = allLeaguesState.default_league || (allLeaguesState.leagues_list[0]?.id || "");
     let currentLeagueData = allLeaguesState.data[currentLeagueId] || null;
     let selectedWeekIndex = 0;
-    let todayOnlyFilter = false; // "Bugün" toggle durumu
+    let todayOnlyFilter = false; // "Bugün" toggle durumu (Fikstür içi)
+    let leagueTodayFilter = false; // "Bugün" toggle durumu (Lig listboxı)
     const APP_LOAD_TIME = Date.now();
 
     let currentMainView = "leagues"; // 'leagues' | 'livescores'
@@ -2846,9 +2906,33 @@ var u,f,l,d=String.fromCharCode;t.exports={version:"2.1.2",encode:a,decode:h}},f
       renderLiveScores();
     }
 
+    function toggleLeagueTodayFilter(checked) {
+      leagueTodayFilter = checked;
+      renderLeagueDropdown();
+    }
+
     function renderLeagueDropdown() {
       const select = document.getElementById("league-select");
-      const list = allLeaguesState.leagues_list || [];
+      let list = allLeaguesState.leagues_list || [];
+
+      if (leagueTodayFilter) {
+        // Bugün maçı olan liglerin ID'lerini canlı skorlar / bugünün maçları listesinden çıkar
+        const todayMatches = allLeaguesState.live_scores_today || [];
+        const todayLeagueIds = new Set(todayMatches.map(m => m.league_id).filter(Boolean));
+        list = list.filter(l => todayLeagueIds.has(l.id));
+      }
+
+      if (list.length === 0) {
+        select.innerHTML = `<option value="">Bugün maçı olan lig yok</option>`;
+        return;
+      }
+
+      // Eğer mevcut seçili lig filtrelenen listede yoksa, listenin ilk ligini seç
+      const hasCurrent = list.some(l => l.id === currentLeagueId);
+      if (!hasCurrent && list.length > 0) {
+        currentLeagueId = list[0].id;
+        loadCurrentLeague();
+      }
 
       select.innerHTML = list.map(l => {
         return `<option value="${l.id}" ${l.id === currentLeagueId ? 'selected' : ''}>${l.name} (${l.country})</option>`;
@@ -2856,6 +2940,7 @@ var u,f,l,d=String.fromCharCode;t.exports={version:"2.1.2",encode:a,decode:h}},f
     }
 
     function onLeagueChanged(leagueId) {
+      if (!leagueId) return;
       currentLeagueId = leagueId;
       loadCurrentLeague();
     }
