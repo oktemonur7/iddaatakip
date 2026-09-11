@@ -1510,7 +1510,7 @@ def keep_alive_ping():
     time.sleep(60)
     while True:
         try:
-            url = os.environ.get("RENDER_EXTERNAL_URL", "https://iddaatakip.onrender.com")
+            url = os.environ.get("RENDER_EXTERNAL_URL", "https://footflow-6550.onrender.com")
             ping_url = f"{url.rstrip('/')}/api/subscriptions"
             req = urllib.request.Request(ping_url, headers={"User-Agent": "RenderKeepAlive/1.0"})
             with urllib.request.urlopen(req, timeout=15) as res:
