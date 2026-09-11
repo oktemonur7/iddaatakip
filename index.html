@@ -3227,10 +3227,23 @@ var u,f,l,d=String.fromCharCode;t.exports={version:"2.1.2",encode:a,decode:h}},f
         const mUuid = m.uuid || m.match_uuid || m.id || "";
 
         let oddsHtml = "";
-        if (tooltipRows.length > 0 && !isStarted) {
+        const showFixtureLineup = !isStarted && mUuid && canShowMatchLineups(m);
+        let fixtureLineupBtnHtml = "";
+        if (showFixtureLineup) {
+          fixtureLineupBtnHtml = `
+            <div class="tooltip-action-box">
+              <button type="button" class="tooltip-lineup-btn" onclick="openMatchLineupModal('${mUuid}', '${hName.replace(/'/g, "\\'")}', '${aName.replace(/'/g, "\\'")}', event)">
+                <span>📋 Kadrolar</span>
+              </button>
+            </div>
+          `;
+        }
+
+        if ((tooltipRows.length > 0 || fixtureLineupBtnHtml) && !isStarted) {
           oddsHtml = `
             <div class="odds-tooltip">
               ${tooltipRows.join("")}
+              ${fixtureLineupBtnHtml}
             </div>
           `;
         }
@@ -4500,6 +4513,31 @@ var u,f,l,d=String.fromCharCode;t.exports={version:"2.1.2",encode:a,decode:h}},f
       return `<span class="live-red-card-group rc-${teamSide}">${cards}</span>`;
     }
 
+    function canShowMatchLineups(m) {
+      if (!m) return false;
+      if (isMatchLive(m) || isMatchPlayed(m)) return true;
+      let matchTs = null;
+      if (m.date_time) {
+        try {
+          const iso = m.date_time.replace(" ", "T") + (m.date_time.endsWith("Z") ? "" : "Z");
+          const d = new Date(iso);
+          if (!isNaN(d.getTime())) matchTs = d.getTime();
+        } catch(e) {}
+      }
+      if (!matchTs && m.match_time && m.match_time.includes(":")) {
+        try {
+          const parts = m.match_time.split(":");
+          const now = new Date();
+          const d = new Date(now.getFullYear(), now.getMonth(), now.getDate(), parseInt(parts[0], 10), parseInt(parts[1], 10), 0);
+          if (!isNaN(d.getTime())) matchTs = d.getTime();
+        } catch(e) {}
+      }
+      if (!matchTs) return false;
+      const diffMs = matchTs - Date.now();
+      // Maçın başlamasına 60 dakika (1 saat) veya daha az kaldıysa (ya da saati geçmişse) kadrolar gösterilebilir
+      return diffMs <= 60 * 60 * 1000;
+    }
+
     function renderMatchRow(m, isFav) {
       const isLive = isMatchLive(m);
       const isPlayed = isMatchPlayed(m);
@@ -4578,17 +4616,28 @@ var u,f,l,d=String.fromCharCode;t.exports={version:"2.1.2",encode:a,decode:h}},f
 
       const hEsc = (m.home_team || "").replace(/'/g, "\\'");
       const aEsc = (m.away_team || "").replace(/'/g, "\\'");
+      const mUuid = m.uuid || m.match_uuid || (m.match_id != null ? String(m.match_id) : (m.id != null ? String(m.id) : ""));
+
+      const showFixtureLineup = !isStarted && mUuid && canShowMatchLineups(m);
+      let fixtureLineupBtnHtml = "";
+      if (showFixtureLineup) {
+        fixtureLineupBtnHtml = `
+          <div class="tooltip-action-box">
+            <button type="button" class="tooltip-lineup-btn" onclick="openMatchLineupModal('${mUuid}', '${hEsc}', '${aEsc}', event)">
+              <span>📋 Kadrolar</span>
+            </button>
+          </div>
+        `;
+      }
 
       let oddsHtml = "";
-      if (tooltipRows.length > 0 && !isStarted) {
-        oddsHtml = `<div class="odds-tooltip" onclick="closeLiveBadgeTooltip(this, event)">${tooltipRows.join("")}</div>`;
+      if ((tooltipRows.length > 0 || fixtureLineupBtnHtml) && !isStarted) {
+        oddsHtml = `<div class="odds-tooltip" onclick="closeLiveBadgeTooltip(this, event)">${tooltipRows.join("")}${fixtureLineupBtnHtml}</div>`;
       }
 
       const favIcon = isFav ? "★" : "☆";
       const favClass = isFav ? "active" : "";
-      const hasOddsTooltip = tooltipRows.length > 0 && !isStarted;
-
-      const mUuid = m.uuid || m.match_uuid || (m.match_id != null ? String(m.match_id) : (m.id != null ? String(m.id) : ""));
+      const hasOddsTooltip = (tooltipRows.length > 0 || !!fixtureLineupBtnHtml) && !isStarted;
 
       let goalTooltipHtml = "";
       let goalHoverAttr = "";
