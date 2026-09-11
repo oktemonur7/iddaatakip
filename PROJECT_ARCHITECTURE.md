@@ -1,217 +1,226 @@
-# İddaa Takip & Canlı Skor - Proje Mimari ve Referans Kılavuzu
+# FootFlow — Mimari Döküman (Güncel)
 
-Bu belge, projenin tüm iç işleyişini, veri akışını, bileşenlerini, zamanlamalarını ve dikkat edilmesi gereken kritik kuralları eksiksiz açıklar. Yeni bir geliştirme yaparken veya sorun çözerken onlarca dosyayı tekrar tekrar okumak yerine doğrudan bu referans belgesine başvurulur.
+> Son güncelleme: 2026-09-11
 
----
+## Sistemin Genel Yapısı
 
-## 1. Sisteme Genel Bakış ve Mimari
+FootFlow iki ana katmandan oluşur:
 
-Proje 3 temel bacaktan oluşur:
-1. **İstemci (Client / Standalone Desktop & PWA):** Tek dosyalık (`index.html`), sıfır dış kütüphane bağımlılığı olan (Socket.io dahi içine gömülü), neon koyu temalı modern canlı skor ve lig takip paneli.
-2. **Push & Senkronizasyon Sunucusu (`push_server.py`):** Render üzerinde (`https://iddaatakip.onrender.com`) çalışan Python HTTP/WebSocket sunucusu. WebPush bildirimlerini yönetir, Sahadan/Mackolik verilerini arka planda tarar, canlı yayın ve golcü verilerini proxy/cache olarak istemciye sunar.
-3. **Derleyici & Veri Kazıyıcı (`build_desktop.py`):** 19 ligin puan durumu, fikstür, oranlar, TV yayınları ve golcü bilgilerini Sahadan/Nesine/İddaa sitelerinden çekip tek bir HTML dosyasına paketleyen betik. Masaüstündeki `futbol_ligleri.html` dosyasını üretir.
-
-```
-                    ┌─────────────────────────────────────────────────────────┐
-                    │      Sahadan.com & Mackolik Canlı Veri Kaynakları       │
-                    │  (socket.mackolikfeeds.com / soccer-sync-data / Nuxt)   │
-                    └──────────────┬────────────────────────────┬─────────────┘
-                                   │                            │
-                   Canlı WebSocket │                            │ HTTP / Nuxt Scrape
-                   (Doğrudan İstemci)                           ▼
-                                   │                   ┌─────────────────────────────┐
-                                   │                   │   build_desktop.py          │
-                                   │                   │   (Veri Kazıma & Derleme)   │
-                                   └──────────────┬────┴──────────────┬──────────────┘
-                                                  │                   │
-                                   Derlenmiş HTML │                   │
-                               ┌──────────────────┴───────────────┐   │
-                               ▼                                  ▼   ▼
-                ┌───────────────────────────────┐       ┌───────────────────────────────┐
-                │  Desktop / Web İstemcisi      │       │  Render Canlı Push Sunucusu   │
-                │  (futbol_ligleri.html / PWA)  │◄─REST─┤  (push_server.py : 8080)      │
-                │  - Puan Durumu & Fikstür      │       │  - WebPush Bildirimleri       │
-                │  - Canlı Skor Barı            │       │  - /api/match-goals           │
-                │  - Golcü & TV Tooltip'leri    │       │  - /api/live-sync             │
-                │  - NTV / Falcon Canlı Yayın   │       │  - /api/stream-player         │
-                └───────────────────────────────┘       └───────────────────────────────┘
-```
+1. **Frontend (GitHub Pages):** `index.html` tek sayfalık PWA uygulaması → `https://oktemonur7.github.io/FootFlow/`
+2. **Backend (Render):** `push_server.py` Python HTTP sunucusu → `https://footflow-6550.onrender.com`
 
 ---
 
-## 2. Dosya Haritası ve Görev Dağılımı
+## Dosya Rolleri
 
-| Dosya Adı | Konum / Hedef | Rol ve Açıklama |
+| Dosya | Kategori | Açıklama |
 |---|---|---|
-| `index.html` | Proje kök dizini | Ana uygulama şablonu. CSS stilleri, UI panelleri, Web Audio ses sentezleyici, Socket.io istemcisi, lig/fikstür render mantığı. |
-| `push_server.py` | Render Cloud | Python 3 sunucusu. Canlı soket dinleyicisi, arka plan sync işçisi, WebPush gönderici, golcü ve canlı yayın endpoint'leri. |
-| `build_desktop.py` | Yerel / Derleyici | 19 ligi Sahadan'dan kazır, önbelleğe yazar, `window.INITIAL_ALL_LEAGUES` verisini enjekte ederek masaüstü ve `dist/` çıktılarını üretir. |
-| `sw.js` | Web İstemcisi / PWA | Service Worker (`iddaatakip-v43`). Network-First (2.5s zaman aşımıyla önbellek fallback) ve WebPush kilit ekranı bildirimlerini yakalar. |
-| `manifest.json` | Web / PWA | PWA manifestosu (standalone açılış, ikonlar, koyu tema). |
-| `socket.io.v2.slim.js`| Derleme girdisi | `build_desktop.py` tarafından derlenen HTML içine gömülen Socket.io v2 istemci kütüphanesi (CDN bağımlılığını sıfırlar). |
-| `leagues_cache.json` | Yerel önbellek | 19 ligin puan durumları, haftaları ve maçlarının disk önbelleği. |
-| `all_goals_cache.json`| Yerel önbellek | UUID bazlı maç gol bilgileri önbelleği (dakika, golcü, asist, skor). |
-| `all_tv_cache.json` | Yerel önbellek | UUID bazlı TV yayın kanalları önbelleği (tabii spor, S Sport, beIN vb.). |
-| `vapid_keys.json` | Sunucu güvenliği | WebPush için VAPID anahtarları (public & private key). |
-| `/Users/onur/Desktop/futbol_ligleri.html` | Masaüstü Çıktısı | Kullanıcının günlük kullandığı ana masaüstü dosyası. |
-| `dist/index.html` | GitHub Pages | GitHub Pages için derlenmiş web sürümü. |
+| `build_desktop.py` | Build Script | Sahadan.com'u kazır, `leagues_cache.json`'u günceller, `index.html`'e data enjekte eder. Manuel/yerel çalıştırılır. |
+| `index.html` | Frontend / PWA | 3.2 MB monolitik frontend. Tüm CSS, JS, HTML tek dosyada. Build script tarafından üretilir. |
+| `push_server.py` | Backend / Render | 69 KB Python TCP sunucusu. 4 thread yönetir. WebPush, gol izleme, kırmızı kart monitörü, keep-alive. |
+| `sw.js` | PWA | Service Worker `footflow-v50`. Network-first (2.5s timeout) strateji + WebPush bildirim yakalama. |
+| `manifest.json` | PWA | PWA manifest: name="FootFlow", ikon yolları, display=standalone, theme-color=#00ff85. |
+| `leagues_cache.json` | Cache | 2.8 MB. 26 lig/kupa verisi. Build script güncelliyor, push_server.py okuyor. |
+| `vapid_keys.json` | Güvenlik | VAPID özel/genel anahtar çifti. Push bildirimleri için zorunlu. GIT'e commit edilmemeli. |
+| `subscriptions.json` | Runtime | Push abonelik kayıtları. Render dosya sisteminde dinamik yazılır. Silinirse aboneler kaybolur. |
+| `all_goals_cache.json` | Cache | Maç gol olayları kalıcı cache. Sunucu restart sonrası da korunur. |
+| `all_tv_cache.json` | Cache | TV yayın bilgileri cache. |
+| `requirements.txt` | Bağımlılık | pywebpush, python-socketio, websocket-client, requests, cryptography |
+| `server.py` | Yerel | Alternatif yerel HTTP sunucusu. Render'da kullanılmıyor. |
+| `socket.io.v2.slim.js` | Library | Socket.IO v2 istemci kütüphanesi (gömülü). |
 
 ---
 
-## 3. Desteklenen Ligler (Toplam 19 Lig / Turnuva)
+## push_server.py — Thread Mimarisi
 
-`build_desktop.py` ve `index.html` içinde 19 lig tanımlıdır:
-1. `super-lig-tr`: Trendyol Süper Lig (Türkiye) - **Varsayılan Lig**
-2. `trendyol-1-lig`: Trendyol 1. Lig (Türkiye)
-3. `sampiyonlar-ligi`: UEFA Şampiyonlar Ligi (`round_id=95533`, 36 takımlı lig aşaması)
-4. `avrupa-ligi`: UEFA Avrupa Ligi (`round_id=94654`)
-5. `konferans-ligi`: UEFA Konferans Ligi (`round_id=95377`)
-6. `premier-lig-en`: Premier Lig (İngiltere)
-7. `championship`: Championship (İngiltere)
-8. `laliga`: LaLiga (İspanya)
-9. `serie-a`: Serie A (İtalya)
-10. `bundesliga`: Bundesliga (Almanya)
-11. `ligue-1`: Ligue 1 (Fransa)
-12. `eredivisie`: Eredivisie (Hollanda)
-13. `premier-lig-pt`: Primeira Liga (Portekiz)
-14. `pro-lig-be`: Pro Lig (Belçika)
-15. `premiership-sc`: Premiership (İskoçya)
-16. `super-lig-dk`: Superliga (Danimarka)
-17. `super-lig-ch`: Super League (İsviçre)
-18. `eliteserien`: Eliteserien (Norveç)
-19. `czech-liga`: Chance Liga (Çekya)
+```
+push_server.py başlarken 4 daemon thread çalıştırır:
 
----
+[Main Thread] HTTP Server (port 8080)
+    ├─ GET /api/vapid-key         → VAPID public key döner
+    ├─ GET /api/subscriptions     → Aktif abone sayısını döner (UptimeRobot bunu çağırır)
+    ├─ GET /api/diagnose          → Sunucu durum raporu
+    ├─ GET /api/match-goals       → Maç gol listesi (uuid gerekli)
+    ├─ GET /api/match-red-cards   → Kırmızı kart listesi (uuid gerekli)
+    ├─ GET /api/match-lineup      → Kadro/diziliş verisi (uuid gerekli)
+    ├─ GET /api/live-stream-player → TV canlı yayın player bilgisi
+    ├─ GET /api/live-summary      → Anlık tüm maçların özeti
+    ├─ POST /api/subscribe        → Push aboneliği kaydet/güncelle
+    └─ POST /api/test-push        → Test bildirimi gönder
 
-## 4. İstemci Durum Yönetimi ve Yaşam Döngüsü (`index.html`)
+[Thread 1] sahadan_http_sync_worker()
+    → Her 30 saniyede sahadan API'yi çeker
+    → Tüm maçları günceller
+    → Gol/skor değişikliklerinde push bildirimi gönderir
+    → Her sabah 07:00'de abone favorilerini sıfırlar
 
-### Ana Değişkenler ve Bellek Durumu
-- `allLeaguesState`: `window.INITIAL_ALL_LEAGUES` üzerinden gelen tüm statik/önbellek lig verisi.
-- `currentLeagueId`: Seçili lig kimliği (`"super-lig-tr"` vb.).
-- `currentLeagueData`: `allLeaguesState.data[currentLeagueId]` (puan durumu, haftalar, aktif hafta).
-- `selectedWeekIndex`: Fikstür panelinde seçili olan hafta dizini.
-- `todayOnlyFilter`: Fikstürde sadece bugünün maçlarını gösteren toggle (`true`/`false`).
-- `liveScoresList`: Bugünün canlı/bitmiş maçlarının listesi (`allLeaguesState.live_scores_today`).
-- `favoriteMatchIds`: Kullanıcının yıldızladığı favori maç kimlikleri (`Set`, `localStorage["agy_fav_matches"]`).
-- `GOALS_CLIENT_CACHE`: `{ [uuid]: [ { minute, type, scorer, assist, score_A, score_B } ] }`.
-- `GOALS_FETCH_IN_FLIGHT`: Aynı maç için aynı anda birden fazla network isteği atılmasını engelleyen kilit tablosu.
-- `GOALS_PENDING_RETRY`: Yeni gol olduğunda golcüyü arayan periyodik retry tablosu.
+[Thread 2] start_socket_listener()
+    → Sahadan WebSocket (Socket.IO v2) bağlantısı
+    → Gerçek zamanlı skor olaylarını yakalar
+    → Kritik olaylarda push bildirimi tetikler
 
-### Lig Değiştirme Akışı (`onLeagueChanged`)
-```javascript
-onLeagueChanged(leagueId)
-  └── currentLeagueId = leagueId
-  └── loadCurrentLeague()
-        ├── currentLeagueData = allLeaguesState.data[currentLeagueId]
-        ├── selectedWeekIndex = currentLeagueData.current_week_index || 0
-        ├── renderStandings()     // Sol panel: Puan durumu ve form rehberi
-        ├── renderWeekSelector()  // Sağ panel: Hafta açılır menüsü
-        └── renderFixture()       // Sağ panel: Seçili haftanın maçları
+[Thread 3] keep_alive_ping()
+    → 60s bekler (sunucu tam açılsın diye)
+    → Sonra her 540s (9 dk) kendi URL'ine ping atar
+    → Render'ın servisi uyutmasını önler
+    → URL: RENDER_EXTERNAL_URL env > hardcoded footflow-6550.onrender.com
+
+[Thread 4] red_card_monitor_worker()
+    → 20s bekler (başlangıç)
+    → Her 180s (3 dk) çalışır, 5s stagger
+    → Favorilenen maçlarda kırmızı kart kontrolü yapar
+    → Kırmızı kart bulursa push bildirimi gönderir
 ```
 
-### Devre / Periyot Koruma Hiyerarşisi (`getMatchPeriodRank`)
-Bayat HTTP polling paketlerinin canlı soket verisini geriye almasını (örn: `İY` iken `45+3`'e geri dönmesini) engellemek için tek yönlü rütbe sistemi kullanılır:
-$$\text{Başlamadı (0)} \longrightarrow \text{1. Yarı (1)} \longrightarrow \text{Devre Arası / İY (2)} \longrightarrow \text{2. Yarı (3)} \longrightarrow \text{Uzatma (4)} \longrightarrow \text{Penaltılar (5)} \longrightarrow \text{MS / Bitti (6)}$$
-- `newRank < currentRank && currentRank >= 2` ise paket **yoksayılır**; maç periyodu ve dakikası geriye çekilmez.
+---
+
+## build_desktop.py — Veri Akışı
+
+```
+build_desktop.py çalıştırıldığında:
+
+1. LEAGUES listesinden 26 lig/kupa URL'si alınır
+2. Her lig için sahadan.com/lig/.../fikstur sayfası HTTP ile çekilir
+3. JSON yanıttan maç, hafta, takım bilgileri ayrıştırılır
+4. leagues_cache.json güncellenir (2.8 MB)
+5. fetch_live_scores_today() → günün canlı skorları çekilir
+6. fetch_iddaa_odds() → iddaa.com API'den oranlar çekilir
+7. fetch_tv_broadcasts() → TV yayın bilgileri çekilir
+8. Tüm data window.INITIAL_ALL_LEAGUES JS objesi olarak derlenir
+9. index.html şablonuna enjekte edilir (regex replace)
+10. Çıktı dosyaları: index.html, dist/index.html, futbol_ligleri.html, premier_lig.html
+
+Çalıştırma: python3 build_desktop.py
+Süresi: ~2-5 dk (network hızına göre)
+```
 
 ---
 
-## 5. Canlı Skor ve Çift Kanal Senkronizasyonu
+## Frontend (index.html) — Kritik Fonksiyonlar
 
-Canlı skorlar iki paralel kaynaktan beslenir:
-1. **Birincil Hızlı Kanal:** Sahadan resmi WebSocket sunucusu (`https://socket.mackolikfeeds.com/mksh`, oda: `soccer`). Anlık gol, dakika ve kırmızı kart olayları milisaniyeler içinde gelir.
-2. **İkincil Yedek Kanal (`pollLiveScoresFromServer`):** Her 5 saniyede bir Render sunucusuna (`/api/live-sync?_t=...`) sorgu atılır. WebSocket kopsa dahi maçlar güncel kalır.
-
-### Skor Değişimi & Gol Mekanizması (`applyLiveMatchUpdate`)
-- **Skor Artışı (Gol):**
-  1. `m._notifiedScores` kontrol edilir (mükerrer ses/animasyon engellenir).
-  2. `playGoalSound()` tetiklenir (Web Audio API: 880 Hz + 1320 Hz çift ton, 2x ses seviyesi).
-  3. Skor kutusuna 12 saniye süren yeşil neon parlama (`goal-flash`) sınıfı eklenir.
-  4. İlgili maç için eski gol önbelleği temizlenir ve `scheduleGoalRetry` başlatılır.
-- **Skor Düşüşü (VAR / Gol İptali):**
-  1. **Jitter Koruması:** Golden sonraki ilk 120 saniye içinde gelen anlık skor düşüşleri bayat paket kabul edilip yoksayılır.
-  2. 120 saniyeden sonra gerçek bir düşüş olursa VAR iptali sayılır:
-     - `playCancelSound()` çalar (alçalan çift ton).
-     - Skor kutusu 10 saniye kırmızı neon yanıp söner (`goal-cancel-flash`).
-- **Kırmızı Kart:**
-  - `rc_home` veya `rc_away` arttığında 10 saniye kırmızı flaş (`red-card-flash`) tetiklenir.
+| Fonksiyon | Satır Aralığı | Açıklama |
+|---|---|---|
+| `getGoalsApiBaseUrl()` | ~L3692 | Push sunucu URL'i döner. Env > hardcoded footflow-6550.onrender.com |
+| `getPushServerUrl()` | ~L5376 | Push subscribe URL. localStorage > hardcoded |
+| `localStorage fallback` | L5377 | footflow_push_server → footfollow_push_server → iddaatakip_push_server (geriye dönük uyum) |
+| `initApp()` | — | PWA başlatma. readyState kontrollü. |
+| `INITIAL_ALL_LEAGUES` | — | Build script tarafından enjekte edilen global JS objesi |
 
 ---
 
-## 6. Golcü Bilgisi Çekme Stratejisi (Retry & Rate-Limit Koruması)
+## Veri Kaynakları
 
-Sahadan editörünün golcüyü sisteme girmesini bekleyen optimize edilmiş sorgu mekanizması:
-- **İlk Sorgu:** Gol olduktan tam **10 saniye sonra** atılır (editöre doğal yazma payı bırakılır, gereksiz ilk saniye yükü kesilir).
-- **Tekrar Aralığı:** İlk sorgudan sonra **her 5 saniyede bir** tekrarlanır.
-- **Maksimum Deneme:** Toplam **15 deneme** (~1 dakika 20 saniye). 15 deneme bittiğinde sorgu kesilir ve "bekleniyor" ibaresi kaldırılarak sistem dinlenmeye alınır.
-- **Sunucu Önbelleği (TTL):** Eksik/girilmemiş golcüsü olan maçlar için sunucu tarafı önbelleği **5 saniye** tutulur (`now - 10`). Sahadan'a dakikada maksimum 12 istek gidebilir; Cloudflare rate-limit riski sıfırlanmıştır.
-- **Hover / Click Anında:** Kullanıcı fareyle skor kutusunun üstüne geldiğinde beklemeden **anında taze sorgu** (`loadScoreGoalTooltip`) atılır.
+| Kaynak | Ne için | Rate Limit Riski |
+|---|---|---|
+| `sahadan.com/api/index/soccer-live-e` | Canlı skor, maç durumu | YÜKSEK — 30s aralık ile çekiliyor |
+| `sahadan.com/lig/.../fikstur` | Fikstür, puan durumu | ORTA — sadece build time |
+| `sahadan.com/mac/...` | Gol olayları, kadro | ORTA — maç bazlı, cache var |
+| `iddaa.com` API | İddaa oranları | DÜŞÜK — sadece build time |
+| Mackolik WebSocket | Gerçek zamanlı skor | DÜŞÜK — tek kalıcı bağlantı |
 
 ---
 
-## 7. Render Backend API Uç Noktaları (`push_server.py`)
+## PWA & Bildirim Sistemi
 
-Sunucu `ThreadedTCPServer` olarak `8080` portunda çalışır.
+```
+Kullanıcı Akışı:
+1. Kullanıcı footflow GitHub Pages URL'ini açar
+2. sw.js yüklenir, "footflow-v50" cache oluşturulur
+3. Kullanıcı bildirim izni verir
+4. Frontend /api/vapid-key endpoint'inden VAPID public key alır
+5. Browser push subscription oluşturur (endpoint + keys)
+6. Subscription /api/subscribe ile Render sunucusuna kaydedilir
+7. Subscriptions.json'a yazılır
 
-| Uç Nokta | Metot | Parametreler | Görev ve Açıklama |
+Bildirim Tetikleyicileri:
+- Gol atıldı → favorilenen maçlar için anlık bildirim
+- Kırmızı kart → her 3 dakikada kontrol, favori maçlar
+- Test bildirimi → /api/test-push endpoint'i
+
+Önemli Kısıt:
+VAPID anahtarları değişirse tüm mevcut abonelikler geçersiz kalır.
+vapid_keys.json'u asla silme/değiştirme.
+```
+
+---
+
+## İsim Değişikliği Risk Analizi
+
+### Mevcut Durum (Sonuç: DÜŞÜK RİSK)
+Tüm kritik kod yolları güncellendi. Aşağıdakiler kasıtlı olarak bırakıldı:
+
+| Konum | İçerik | Risk | Karar |
 |---|---|---|---|
-| `/api/match-goals` | `GET` | `uuid`, `home`, `away`, `min_goals` | Sahadan maç detayından (`__NUXT_DATA__`) golcüler, asistler ve dakikaları döner. |
-| `/api/live-sync` | `GET` | `_t` (timestamp) | Sunucudaki en güncel canlı ve bitmiş maç listesini (`latest_matches_summary`) döner. |
-| `/api/stream-player` | `GET` | `id`, `server` (`falcon`/`kobra`) | NTV canlı yayın iframe HTML'ini döner (120 sn önbellekli). |
-| `/api/stream-embed` | `GET` | `server`, `id` | Canlı yayın gömme URL'sini çözer. |
-| `/api/vapid-key` | `GET` | - | WebPush için genel anahtarı (`vapid_keys.json`) döner. |
-| `/api/subscribe` | `POST` | JSON: `{ endpoint, keys, favorites }` | WebPush aboneliğini kaydeder / günceller. |
-| `/api/unsubscribe` | `POST` | JSON: `{ endpoint }` | WebPush aboneliğini siler. |
-| `/api/update-favorites` | `POST` | JSON: `{ endpoint, favorites }` | Abonenin bildirim almak istediği maç ID'lerini günceller. |
-| `/api/diagnose` | `GET` | - | Canlı sistem tanı bilgileri (abone sayısı, endpoint önizlemeleri). |
+| `index.html` L5377 | `iddaatakip_push_server` localStorage fallback | Yok | Bırak (geriye dönük uyum) |
+| `build_desktop.py` | `fetch_iddaa_odds()` fonksiyon adı | Yok | Bırak (fonksiyon tarif ediyor) |
+| `index.html` meta | "iddaa oranları" metin | Yok | Bırak (fonksiyonel metin) |
 
-### ⚠️ Kritik CORS Kuralı
-`RequestHandler.end_headers()` zaten otomatik olarak:
-```python
-self.send_header("Access-Control-Allow-Origin", "*")
-self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-self.send_header("Access-Control-Allow-Headers", "Content-Type")
-```
-başlıklarını ekler. **ASLA** endpoint'ler (`/api/match-goals` vb.) içinde manuel olarak `send_header("Access-Control-Allow-Origin", "*")` çağrılmamalıdır! Aksi takdirde HTTP cevabında `*, *` mükerrer başlığı oluşur ve tarayıcılar CORS hatasıyla isteği çöpe atar.
+### Gerçek Etkiler (Kalıcı, Çözümsüz)
+1. **Eski push aboneleri:** `iddaatakip.onrender.com`'a kayıtlı abonelikler yeni sunucuda yok. Kullanıcıların yeniden kaydolması şart.
+2. **PWA yüklü kullanıcılar:** `oktemonur7.github.io/iddaatakip/` veya `iddaatakip.onrender.com` bookmark'ları artık çalışmıyor. Yeni URL'i paylaşmak gerekiyor.
+3. **GitHub redirect:** Eski `oktemonur7/iddaatakip` repo'su FootFlow'a redirect yapıyor, bu yardımcı oluyor.
 
 ---
 
-## 8. Canlı Yayın Entegrasyonu (NTV / Falcon / Kobra)
+## Yeni Özellik Ekleme Rehberi
 
-- Maç kutucuğundaki **▶ Canlı İzle** butonu sadece devam etmekte olan canlı maçlarda (`isLive`) görünür; bitmiş maçlarda gizlenir.
-- Butona tıklandığında `openMatchStream(homeTeam, awayTeam)` çalışır.
-- Falcon ve Kobra sunucuları taranarak ilgili takımların maçı bulunur.
-- Bulunan maç `stream-modal` içinde iframe olarak açılır; kullanıcı modal üzerinden sunucu değiştirebilir (`falcon` / `kobra`).
+### Yeni Lig/Kupa Eklemek
+1. `build_desktop.py` → `LEAGUES` listesine yeni obje ekle
+2. Sahadan URL'ini bul (format: `https://www.sahadan.com/lig/[slug]/[id]/fikstur`)
+3. Kupa ise: `"type": "cup"` ekle, `"min_date"` eklenebilir
+4. `python3 build_desktop.py` çalıştır
+5. `leagues_cache.json` ve `index.html` otomatik güncellenir
+6. Commit et ve push yap
 
----
+### Yeni API Endpoint Eklemek (Backend)
+1. `push_server.py` → `RequestHandler.do_GET()` veya `do_POST()` içine yeni `if self.path == "/api/..."` bloğu ekle
+2. CORS başlığı `end_headers()` tarafından otomatik ekleniyor
+3. Render otomatik deploy eder (push sonrası ~2-3 dk)
 
-## 9. Geliştirme & Dağıtım Rutinleri (Nasıl Güncellenir?)
+### Yeni Bildirim Türü Eklemek
+1. `push_server.py` → `process_match_update()` içinde yeni koşul ekle
+2. Payload formatı: `{"title": "...", "body": "...", "tag": "footflow-...", "data": {...}}`
+3. `sw.js` → `push` event listener'da `event.data.json()` parse eder, özel `tag` ile farklı davranış tanımlayabilirsin
 
-Bir değişiklik yapıldığında izlenmesi gereken standart sıra:
-
-1. **Kaynak Dosyayı Düzenle:** `index.html` veya `push_server.py` üzerinde gerekli düzeltmeyi yap.
-2. **Masaüstü ve Dist Dosyalarını Derle:**
-   ```bash
-   python3 build_desktop.py
-   ```
-   Bu komut `leagues_cache.json` ve `all_goals_cache.json` verilerini tazeleyerek `/Users/onur/Desktop/futbol_ligleri.html` ve `dist/index.html` dosyalarını yeniden üretir.
-3. **Git Commit & Push (Render ve GitHub Pages):**
-   ```bash
-   git add index.html push_server.py leagues_cache.json all_goals_cache.json PROJECT_ARCHITECTURE.md
-   git commit -m "fix/feat: açıklama"
-   git push origin main
-   ```
-   Push işlemi Render sunucusunu otomatik tetikler (~45-60 saniye içinde yayına girer).
-4. **Doğrulama:**
-   - Render CORS testi: `curl -i -s "https://iddaatakip.onrender.com/api/match-goals?uuid=123" | grep -i access-control` (Tek `*` olmalı).
-   - Masaüstü dosyasında tarayıcıda `Cmd + Shift + R` ile test et.
+### Frontend Değişikliği
+> ⚠️ `index.html` doğrudan değiştirme! Build sonrası ezilir.
+1. `build_desktop.py` içindeki şablon fonksiyonlarını düzenle
+2. Statik içerik: `build_desktop_html()` fonksiyonu içinde
+3. Canlı data: `window.INITIAL_ALL_LEAGUES` enjeksiyonu
+4. `python3 build_desktop.py` çalıştır, test et, commit et
 
 ---
 
-## 10. Geçmiş Hatalar ve Altın Kurallar (Asla Tekrarlanmayacaklar)
+## Hata Ayıklama Rehberi
 
-1. **Değişken Sıralaması (`renderFixture`):** `isPlayed` ve `isLive` değişkenleri maç döngüsünün (`matchesToShow.forEach`) en başında tanımlanmalıdır. Tooltip veya skor kutusu içinde kullanılmadan önce tanımlanmazsa `ReferenceError: Cannot access 'isLive' before initialization` hatası fırlatır ve lig geçişleri kilitlenir.
-2. **Çift CORS Başlığı:** `push_server.py` içinde endpoint'lere manuel CORS başlığı ekleme. Tek yetkili `end_headers()` fonksiyonudur.
-3. **Periyot Regresyonu:** `applyLiveMatchUpdate` içinde devre rütbesi kontrol edilmeden `m.period` güncellenmemelidir (`1.Yarı` devresi `İY`'yi ezemez).
-4. **Hafta İsimlendirmesi:** Turnuva maçlarında (Şampiyonlar Ligi, Avrupa Ligi) eleme turları `1. Eleme Turu`, `Play-off`; lig aşaması ise `Lig Aşaması X. Hafta` olarak etiketlenmelidir (`Hafta Play-off` gibi hatalı string birleştirmeler yapılmamalıdır).
-5. **UUID vs ID:** Canlı maçlarda `match_id` ve `match_uuid`, fikstür maçlarında `id` ve `uuid` kullanılır. Kod içinde daima `m.uuid || m.match_uuid || m.match_id || m.id` kontrolü yapılmalı ve DOM elemanlarına `data-match-uuid` bağlanmalıdır.
+### "Bildirim gelmiyor"
+1. Render servisi ayakta mı? → `https://footflow-6550.onrender.com/api/subscriptions` aç
+2. Abone kayıtlı mı? → Aynı endpoint abonelik sayısını döner
+3. VAPID key değişti mi? → `vapid_keys.json` kontrol et
+4. Test bildirimi gönder: `POST /api/test-push`
+5. Browser DevTools → Application → Service Workers → Push test
+
+### "Sahadan verileri güncellenmiyor"
+1. Render loglarında 429 hatası var mı? → Rate limit, birkaç dk bekle
+2. Socket bağlantısı kesildi mi? → `start_socket_listener()` yeniden bağlanır, bekleme süresi ~30s
+
+### "Build script çalışmıyor"
+1. `pip install -r requirements.txt` dene (sadece requests kullanıyor)
+2. Sahadan erişilebilir mi? → `curl https://www.sahadan.com` dene
+3. 429 hatası → farklı saatte dene
+
+### "GitHub Pages güncellenmedi"
+1. GitHub Actions çalıştı mı? → Repo → Actions sekmesi
+2. `dist/index.html` değişti mi? → Build sonrası her zaman commit edilmeli
+3. Branch: main olmalı
+
+---
+
+## Ortam Değişkenleri (Render)
+
+| Değişken | Nerede Set | Açıklama |
+|---|---|---|
+| `PORT` | Render otomatik | HTTP sunucu portu (default 8080) |
+| `RENDER_EXTERNAL_URL` | Render otomatik | Servisin dış URL'i. Keep-alive ping'de kullanılır |
+
+> Render'da elle set edilmesi gereken bir env var yok. Tüm değerler ya Render tarafından otomatik set edilir ya da kodda hardcoded fallback vardır.
