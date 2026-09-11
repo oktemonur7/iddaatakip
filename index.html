@@ -2858,6 +2858,11 @@ var u,f,l,d=String.fromCharCode;t.exports={version:"2.1.2",encode:a,decode:h}},f
       try { checkPushSubscription(); } catch (e) { console.error("checkPushSubscription error:", e); }
       try { fetchNtvMatches(); } catch (e) {}
 
+      // Mobilde ve ilk açılışta anında güncel skoru çek (WebSocket el sıkışmasını beklemeden)
+      if (typeof pollLiveScoresFromServer === "function") {
+        pollLiveScoresFromServer(true);
+      }
+
       // Mobilde uygulamayı Canlı Skorlar ile aç
       const isMobile = window.innerWidth <= 768 || /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent);
       if (isMobile) {
@@ -4550,6 +4555,12 @@ var u,f,l,d=String.fromCharCode;t.exports={version:"2.1.2",encode:a,decode:h}},f
         scoreClass = "fixture-time";
       }
 
+      // Aktif animasyonları (Gol / İptal / Kırmızı Kart) liste yeniden render edilse bile koru
+      const nowRenderTs = Date.now();
+      if (m._flashType && m._flashUntil && nowRenderTs < m._flashUntil) {
+        scoreClass += ` ${m._flashType}`;
+      }
+
       const scoreHtml = formatLiveScoreHtml(m);
 
       // TV Kanalı ve Oranlar Tooltip (YALNIZCA BAŞLAMAMIŞ MAÇLARDA GÖSTERİLİR)
@@ -5007,19 +5018,20 @@ var u,f,l,d=String.fromCharCode;t.exports={version:"2.1.2",encode:a,decode:h}},f
       // Skor kontrolü - Ev Sahibi
       if (update.fts_A !== undefined && update.fts_A !== null) {
         let newHome = parseInt(update.fts_A, 10);
-        const oldHome = (m.home_score !== null && m.home_score !== undefined && !isNaN(parseInt(m.home_score, 10))) ? parseInt(m.home_score, 10) : null;
+        const rawOldHome = (m.home_score !== null && m.home_score !== undefined && !isNaN(parseInt(m.home_score, 10))) ? parseInt(m.home_score, 10) : null;
+        const oldHome = rawOldHome !== null ? rawOldHome : 0;
 
         // Jitter / Bayat Paket Koruması: Gol sonrası 15s boyunca anlık dalgalanan paketler engellenir, gerçek VAR iptali anında kabul edilir
-        if (oldHome !== null && newHome < oldHome) {
+        if (rawOldHome !== null && newHome < rawOldHome) {
           if (nowTs - lastGoalTime < 15000) {
-            newHome = oldHome; // İlk 15 saniye içindeki anlık paket dalgalanmasını engelle
+            newHome = rawOldHome; // İlk 15 saniye içindeki anlık paket dalgalanmasını engelle
           } else if (!isInitialSync) {
             goalCancelled = true;
-            oldScoreBeforeCancel = `${oldHome}-${m.away_score !== null && m.away_score !== undefined ? m.away_score : 0}`;
+            oldScoreBeforeCancel = `${rawOldHome}-${m.away_score !== null && m.away_score !== undefined ? m.away_score : 0}`;
           }
         }
 
-        if (!isInitialSync && oldHome !== null && newHome > oldHome) {
+        if (!isInitialSync && newHome > oldHome) {
           goalScored = true;
           m._lastGoalTime = nowTs;
         }
@@ -5030,19 +5042,20 @@ var u,f,l,d=String.fromCharCode;t.exports={version:"2.1.2",encode:a,decode:h}},f
       // Skor kontrolü - Deplasman
       if (update.fts_B !== undefined && update.fts_B !== null) {
         let newAway = parseInt(update.fts_B, 10);
-        const oldAway = (m.away_score !== null && m.away_score !== undefined && !isNaN(parseInt(m.away_score, 10))) ? parseInt(m.away_score, 10) : null;
+        const rawOldAway = (m.away_score !== null && m.away_score !== undefined && !isNaN(parseInt(m.away_score, 10))) ? parseInt(m.away_score, 10) : null;
+        const oldAway = rawOldAway !== null ? rawOldAway : 0;
 
         // Jitter / Bayat Paket Koruması: Gol sonrası 15s boyunca anlık dalgalanan paketler engellenir, gerçek VAR iptali anında kabul edilir
-        if (oldAway !== null && newAway < oldAway) {
+        if (rawOldAway !== null && newAway < rawOldAway) {
           if (nowTs - lastGoalTime < 15000) {
-            newAway = oldAway; // İlk 15 saniye içindeki anlık paket dalgalanmasını engelle
+            newAway = rawOldAway; // İlk 15 saniye içindeki anlık paket dalgalanmasını engelle
           } else if (!isInitialSync) {
             goalCancelled = true;
-            oldScoreBeforeCancel = `${m.home_score !== null && m.home_score !== undefined ? m.home_score : 0}-${oldAway}`;
+            oldScoreBeforeCancel = `${m.home_score !== null && m.home_score !== undefined ? m.home_score : 0}-${rawOldAway}`;
           }
         }
 
-        if (!isInitialSync && oldAway !== null && newAway > oldAway) {
+        if (!isInitialSync && newAway > oldAway) {
           goalScored = true;
           m._lastGoalTime = nowTs;
         }
@@ -5264,12 +5277,16 @@ var u,f,l,d=String.fromCharCode;t.exports={version:"2.1.2",encode:a,decode:h}},f
             if (cancelShouldAlert) {
               playCancelSound();
             }
+            m._flashType = "goal-cancel-flash";
+            m._flashUntil = Date.now() + 10000;
             const activeScoreEl = document.getElementById(`live-score-${mid}`);
             if (activeScoreEl) {
               activeScoreEl.classList.remove("goal-flash", "red-card-flash");
               activeScoreEl.classList.add("goal-cancel-flash");
               if (m._flashTimer) clearTimeout(m._flashTimer);
               m._flashTimer = setTimeout(() => {
+                delete m._flashType;
+                delete m._flashUntil;
                 if (activeScoreEl) activeScoreEl.classList.remove("goal-cancel-flash");
               }, 10000);
             }
@@ -5312,20 +5329,28 @@ var u,f,l,d=String.fromCharCode;t.exports={version:"2.1.2",encode:a,decode:h}},f
 
         // Gol animasyonu (yeşil neon parlama)
         if (goalScored) {
+          m._flashType = "goal-flash";
+          m._flashUntil = Date.now() + 12000;
           scoreEl.classList.remove("goal-cancel-flash", "red-card-flash");
           scoreEl.classList.add("goal-flash");
           if (m._flashTimer) clearTimeout(m._flashTimer);
           m._flashTimer = setTimeout(() => {
+            delete m._flashType;
+            delete m._flashUntil;
             if (scoreEl) scoreEl.classList.remove("goal-flash");
           }, 12000);
         }
 
         // Kırmızı Kart animasyonu (kırmızı yanıp sönme)
         if (redCardTriggered) {
+          m._flashType = "red-card-flash";
+          m._flashUntil = Date.now() + 10000;
           scoreEl.classList.remove("goal-flash", "goal-cancel-flash");
           scoreEl.classList.add("red-card-flash");
           if (m._flashTimer) clearTimeout(m._flashTimer);
           m._flashTimer = setTimeout(() => {
+            delete m._flashType;
+            delete m._flashUntil;
             if (scoreEl) scoreEl.classList.remove("red-card-flash");
           }, 10000);
         }
