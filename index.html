@@ -3390,9 +3390,44 @@ var u,f,l,d=String.fromCharCode;t.exports={version:"2.1.2",encode:a,decode:h}},f
        GOL BİLGİLERİ (MATCH GOALS) TOOLTIP YÖNETİMİ
        ========================================================================= */
     const GOALS_CLIENT_CACHE = {};
+    const GOALS_LOCAL_STORAGE_KEY = "footflow_goals_cache";
     const GOALS_FETCH_IN_FLIGHT = {};
     // uuid -> { expectedGoals, timer } - Sahadan'ın yeni golü sisteme girmesini beklerken 15 sn'de bir yeniden dener
     const GOALS_PENDING_RETRY = {};
+
+    function saveGoalToLocalStorage(key, goals) {
+      if (!key || !Array.isArray(goals) || goals.length === 0) return;
+      try {
+        let stored = {};
+        const raw = localStorage.getItem(GOALS_LOCAL_STORAGE_KEY);
+        if (raw) {
+          try { stored = JSON.parse(raw) || {}; } catch(e) { stored = {}; }
+        }
+        stored[key] = goals;
+        // Limit cache size to 1000 matches to prevent localStorage quota exhaustion
+        const keys = Object.keys(stored);
+        if (keys.length > 1000) {
+          for (let i = 0; i < keys.length - 800; i++) {
+            delete stored[keys[i]];
+          }
+        }
+        localStorage.setItem(GOALS_LOCAL_STORAGE_KEY, JSON.stringify(stored));
+      } catch(e) {}
+    }
+
+    function removeGoalFromLocalStorage(key) {
+      if (!key) return;
+      try {
+        const raw = localStorage.getItem(GOALS_LOCAL_STORAGE_KEY);
+        if (raw) {
+          const stored = JSON.parse(raw) || {};
+          if (stored[key]) {
+            delete stored[key];
+            localStorage.setItem(GOALS_LOCAL_STORAGE_KEY, JSON.stringify(stored));
+          }
+        }
+      } catch(e) {}
+    }
 
     function areGoalsComplete(goals, expectedCount) {
       if (!Array.isArray(goals) || goals.length === 0) return false;
@@ -3505,6 +3540,7 @@ var u,f,l,d=String.fromCharCode;t.exports={version:"2.1.2",encode:a,decode:h}},f
           if (isComplete) {
             // Tam veri geldi: tüm golcüler belli
             GOALS_CLIENT_CACHE[uuid] = goals;
+            saveGoalToLocalStorage(uuid, goals);
             delete GOALS_PENDING_RETRY[uuid];
 
             if (currentRetry.targetEl) {
@@ -3587,6 +3623,20 @@ var u,f,l,d=String.fromCharCode;t.exports={version:"2.1.2",encode:a,decode:h}},f
             }
           }
         }
+        // 4. localStorage içinde daha önce kaydedilmiş golleri yükle (Kalıcı önbellek)
+        try {
+          const rawStored = localStorage.getItem(GOALS_LOCAL_STORAGE_KEY);
+          if (rawStored) {
+            const stored = JSON.parse(rawStored);
+            if (stored && typeof stored === "object") {
+              for (const k in stored) {
+                if (Array.isArray(stored[k]) && stored[k].length > 0 && !GOALS_CLIENT_CACHE[k]) {
+                  GOALS_CLIENT_CACHE[k] = stored[k];
+                }
+              }
+            }
+          }
+        } catch(e) {}
       } catch(e) {}
     }
     populateGoalsClientCacheFromData();
@@ -3711,6 +3761,9 @@ var u,f,l,d=String.fromCharCode;t.exports={version:"2.1.2",encode:a,decode:h}},f
         const data = await res.json();
         if (data.success && Array.isArray(data.goals)) {
           GOALS_CLIENT_CACHE[uuid] = data.goals;
+          if (areGoalsComplete(data.goals, minGoals)) {
+            saveGoalToLocalStorage(uuid, data.goals);
+          }
           updateAllGoalTooltipsForMatch(uuid, homeTeam, awayTeam, data.goals, true, minGoals);
         }
       } catch (err) {
@@ -3834,10 +3887,11 @@ var u,f,l,d=String.fromCharCode;t.exports={version:"2.1.2",encode:a,decode:h}},f
           GOALS_CLIENT_CACHE[uuid] = goals;
           tooltip.innerHTML = formatGoalsHtml(goals, homeTeam, awayTeam, canStream, currentTotalScore, uuid);
           const isComplete = areGoalsComplete(goals, currentTotalScore);
-          if (!isComplete && currentTotalScore) {
-            scheduleGoalRetry(uuid, homeTeam, awayTeam, currentTotalScore, el);
-          } else if (isComplete) {
+          if (isComplete) {
+            saveGoalToLocalStorage(uuid, goals);
             delete GOALS_PENDING_RETRY[uuid];
+          } else if (currentTotalScore) {
+            scheduleGoalRetry(uuid, homeTeam, awayTeam, currentTotalScore, el);
           }
         } else {
           // Henüz Sahadan'da gol kaydı yok:
@@ -4929,6 +4983,8 @@ var u,f,l,d=String.fromCharCode;t.exports={version:"2.1.2",encode:a,decode:h}},f
           const existingGoals = (Array.isArray(m.goals) && m.goals.length > 0) ? m.goals : (GOALS_CLIENT_CACHE[mUuidKey] || []);
           delete GOALS_CLIENT_CACHE[mUuidKey];
           delete GOALS_CLIENT_CACHE[String(m.match_id)];
+          removeGoalFromLocalStorage(mUuidKey);
+          if (m.match_id != null) removeGoalFromLocalStorage(String(m.match_id));
 
           const expectedTotalGoals = ((m.home_score !== null && m.home_score !== undefined ? parseInt(m.home_score, 10) : 0) || 0) +
                                      ((m.away_score !== null && m.away_score !== undefined ? parseInt(m.away_score, 10) : 0) || 0);
