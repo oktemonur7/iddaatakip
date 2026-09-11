@@ -3403,11 +3403,24 @@ var u,f,l,d=String.fromCharCode;t.exports={version:"2.1.2",encode:a,decode:h}},f
         if (raw) {
           try { stored = JSON.parse(raw) || {}; } catch(e) { stored = {}; }
         }
-        stored[key] = goals;
-        // Limit cache size to 1000 matches to prevent localStorage quota exhaustion
+        // Sadece ekranda kullanılan zorunlu alanları sakla (ultra hafif: ~150 bayt/maç)
+        const compactGoals = goals.map(g => {
+          const item = {
+            m: g.minute,
+            t: g.team,
+            s: g.scorer
+          };
+          if (g.extra_min) item.em = g.extra_min;
+          if (g.type && g.type !== 'G') item.tp = g.type;
+          return item;
+        });
+
+        stored[key] = compactGoals;
+
+        // localStorage'ı şişirmemek için en fazla 150 maç tut (toplam ~25-30 KB)
         const keys = Object.keys(stored);
-        if (keys.length > 1000) {
-          for (let i = 0; i < keys.length - 800; i++) {
+        if (keys.length > 150) {
+          for (let i = 0; i < keys.length - 120; i++) {
             delete stored[keys[i]];
           }
         }
@@ -3631,7 +3644,19 @@ var u,f,l,d=String.fromCharCode;t.exports={version:"2.1.2",encode:a,decode:h}},f
             if (stored && typeof stored === "object") {
               for (const k in stored) {
                 if (Array.isArray(stored[k]) && stored[k].length > 0 && !GOALS_CLIENT_CACHE[k]) {
-                  GOALS_CLIENT_CACHE[k] = stored[k];
+                  // Sıkıştırılmış compact formatı (m, t, s, em, tp) standart formata aç
+                  GOALS_CLIENT_CACHE[k] = stored[k].map(item => {
+                    if (item && item.s !== undefined) {
+                      return {
+                        minute: item.m,
+                        team: item.t,
+                        scorer: item.s,
+                        extra_min: item.em || null,
+                        type: item.tp || 'G'
+                      };
+                    }
+                    return item;
+                  });
                 }
               }
             }
