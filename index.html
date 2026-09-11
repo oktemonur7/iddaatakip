@@ -1174,29 +1174,11 @@ var u,f,l,d=String.fromCharCode;t.exports={version:"2.1.2",encode:a,decode:h}},f
     }
 
     .live-played-divider {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      margin: 8px 2px 4px 2px;
-      padding: 2px 0;
-      user-select: none;
-    }
-
-    .live-played-divider span {
-      font-size: 0.68rem;
-      font-weight: 700;
-      color: #64748b;
-      text-transform: uppercase;
-      letter-spacing: 0.06em;
-      white-space: nowrap;
-    }
-
-    .live-played-divider::before,
-    .live-played-divider::after {
-      content: "";
-      flex: 1;
+      display: block;
       height: 1px;
-      background: linear-gradient(90deg, rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0.03));
+      margin: 10px 4px;
+      background: linear-gradient(90deg, rgba(255, 255, 255, 0.02), rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0.02));
+      border: none;
     }
 
     .live-columns-row {
@@ -4834,7 +4816,7 @@ var u,f,l,d=String.fromCharCode;t.exports={version:"2.1.2",encode:a,decode:h}},f
       function renderMatchItemWithDivider(m, idx) {
         let itemHtml = "";
         if (isFav && hasUnplayed && idx === firstPlayedIdx) {
-          itemHtml += `<div class="live-played-divider"><span>Biten Maçlar</span></div>`;
+          itemHtml += `<div class="live-played-divider"></div>`;
         }
         itemHtml += renderMatchRow(m, isFav);
         return itemHtml;
