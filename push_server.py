@@ -590,26 +590,42 @@ def process_match_update(update, is_initial=False, is_from_full_sync=False):
     ]
     match_ids = [i for i in match_ids if i]
 
-    cached_names = match_names_map.get(mid, ("Ev Sahibi", "Deplasman"))
-    m = live_matches_state.setdefault(mid, {
-        "home_team": update.get("home_team_name") or cached_names[0],
-        "away_team": update.get("away_team_name") or cached_names[1],
-        "home_score": None,
-        "away_score": None,
-        "ht_home": None,
-        "ht_away": None,
-        "status": "",
-        "period": "",
-        "minute": "",
-        "rc_home": 0,
-        "rc_away": 0,
-        "notified_scores": set(),
-        "notified_ht": False,
-        "notified_ft": False
-    })
+    # Canlı Maç Takip Nesnesi Çözümleme (Numeric ID, Match ID, UUID tek nesnede birleştirilir)
+    m = None
+    for cand_id in match_ids:
+        if cand_id in live_matches_state:
+            m = live_matches_state[cand_id]
+            break
+
+    if m is None:
+        cached_names = match_names_map.get(mid, ("Ev Sahibi", "Deplasman"))
+        m = {
+            "home_team": update.get("home_team_name") or cached_names[0],
+            "away_team": update.get("away_team_name") or cached_names[1],
+            "home_score": None,
+            "away_score": None,
+            "ht_home": None,
+            "ht_away": None,
+            "status": "",
+            "period": "",
+            "minute": "",
+            "rc_home": 0,
+            "rc_away": 0,
+            "notified_scores": set(),
+            "notified_ht": False,
+            "notified_ft": False,
+            "cancelled_scores_cooldown": {},
+            "notified_cancel_scores": set()
+        }
+    
+    # Tüm ID varyasyonlarını aynı referansa bağla (böylece socket.io uuid ve full-sync id aynı maçı günceller)
+    for cand_id in match_ids:
+        live_matches_state[cand_id] = m
 
     if "notified_scores" not in m:
         m["notified_scores"] = set()
+    if "notified_cancel_scores" not in m:
+        m["notified_cancel_scores"] = set()
 
     if m["home_team"] == "Ev Sahibi" and cached_names[0] != "Ev Sahibi":
         m["home_team"] = cached_names[0]
@@ -695,39 +711,51 @@ def process_match_update(update, is_initial=False, is_from_full_sync=False):
         if now_ts < exp_time
     }
 
+    # Jitter / Bayat Paket Koruması:
+    # Yeni bir gol geldikten sonra (veya skor yükselişinden hemen sonra) 30 saniye içinde gelen düşük skor paketleri
+    # CDN/cluster kaynaklı ara dalgalanmadır (jitter), kesinlikle iptal bildirimi tetiklememeli.
     if new_h is not None and m["home_score"] is not None and new_h < m["home_score"]:
-        # Gol sonrası 15 saniye boyunca dalgalanma/bayat paket koruması (15s sonrasındaki düşüşler gerçek VAR gol iptalidir)
-        if (now_ts - last_goal_time) < 15:
+        if (now_ts - last_goal_time) < 30:
             new_h = m["home_score"]
         else:
             is_home_cancel = True
 
     if new_a is not None and m["away_score"] is not None and new_a < m["away_score"]:
-        if (now_ts - last_goal_time) < 15:
+        if (now_ts - last_goal_time) < 30:
             new_a = m["away_score"]
         else:
             is_away_cancel = True
 
     # 1. GERÇEK GOL İPTALİ TESPİTİ (VAR)
     if is_home_cancel or is_away_cancel:
-        team_str = f" {m['home_team']}" if is_home_cancel else f" {m['away_team']}"
-        cancel_title = f"❌ GOL İPTAL!{team_str}"
-        cancel_body = f"{m['home_team']} {new_h} - {new_a} {m['away_team']}"
-        log_event(f"GOL İPTAL EDİLDİ: {cancel_title} -> {cancel_body}")
-        
-        # İptal edilen eski skoru kaydet (örn. (1, 0))
         old_score_pair = (m["home_score"], m["away_score"])
-        # 90 saniye boyunca bu skora geri dönülse dahi (bayat/dalgalı paket) tekrar GOL bildirimi tetiklenmesini engelle
+        cancel_pair = (new_h, new_a)
+        
+        # 90 saniye boyunca iptal edilen bu skora geri dönülse dahi (bayat paket) tekrar GOL bildirimi gitmesini engelle
         m["cancelled_scores_cooldown"][old_score_pair] = now_ts + 90
-
         m["home_score"] = new_h
         m["away_score"] = new_a
-        send_push_for_match(all_identifiers, {
-            "title": cancel_title,
-            "body": cancel_body,
-            "icon": "icons/icon-192.png",
-            "tag": f"goal-cancel-{mid}-{new_h}-{new_a}"
-        })
+
+        # DEDUPLICATION: Aynı maçta aynı iptal skoru için 2 dakika boyunca tekrar tekrar iptal push'u gönderme
+        cancel_dedup_key = f"{old_score_pair}->{cancel_pair}"
+        if "notified_cancel_scores" not in m:
+            m["notified_cancel_scores"] = set()
+
+        if cancel_dedup_key not in m["notified_cancel_scores"]:
+            m["notified_cancel_scores"].add(cancel_dedup_key)
+            team_str = f" {m['home_team']}" if is_home_cancel else f" {m['away_team']}"
+            cancel_title = f"❌ GOL İPTAL!{team_str}"
+            cancel_body = f"{m['home_team']} {new_h} - {new_a} {m['away_team']}"
+            log_event(f"GOL İPTAL EDİLDİ: {cancel_title} -> {cancel_body}")
+            
+            send_push_for_match(all_identifiers, {
+                "title": cancel_title,
+                "body": cancel_body,
+                "icon": "icons/icon-192.png",
+                "tag": f"goal-cancel-{mid}-{new_h}-{new_a}"
+            })
+        else:
+            log_event(f"GOL İPTAL TEKRARI ENGELLENDİ (Deduplicated): {mid} {cancel_dedup_key}")
 
     if new_h is not None:
         if m["home_score"] is not None and new_h > m["home_score"]:

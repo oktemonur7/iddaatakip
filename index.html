@@ -5021,10 +5021,10 @@ var u,f,l,d=String.fromCharCode;t.exports={version:"2.1.2",encode:a,decode:h}},f
         const rawOldHome = (m.home_score !== null && m.home_score !== undefined && !isNaN(parseInt(m.home_score, 10))) ? parseInt(m.home_score, 10) : null;
         const oldHome = rawOldHome !== null ? rawOldHome : 0;
 
-        // Jitter / Bayat Paket Koruması: Gol sonrası 15s boyunca anlık dalgalanan paketler engellenir, gerçek VAR iptali anında kabul edilir
+        // Jitter / Bayat Paket Koruması: Gol sonrası 30s boyunca anlık dalgalanan paketler engellenir, gerçek VAR iptali 2s teyitle kabul edilir
         if (rawOldHome !== null && newHome < rawOldHome) {
-          if (nowTs - lastGoalTime < 15000) {
-            newHome = rawOldHome; // İlk 15 saniye içindeki anlık paket dalgalanmasını engelle
+          if (nowTs - lastGoalTime < 30000) {
+            newHome = rawOldHome; // İlk 30 saniye içindeki anlık paket dalgalanmasını engelle
           } else if (!isInitialSync) {
             goalCancelled = true;
             oldScoreBeforeCancel = `${rawOldHome}-${m.away_score !== null && m.away_score !== undefined ? m.away_score : 0}`;
@@ -5045,10 +5045,10 @@ var u,f,l,d=String.fromCharCode;t.exports={version:"2.1.2",encode:a,decode:h}},f
         const rawOldAway = (m.away_score !== null && m.away_score !== undefined && !isNaN(parseInt(m.away_score, 10))) ? parseInt(m.away_score, 10) : null;
         const oldAway = rawOldAway !== null ? rawOldAway : 0;
 
-        // Jitter / Bayat Paket Koruması: Gol sonrası 15s boyunca anlık dalgalanan paketler engellenir, gerçek VAR iptali anında kabul edilir
+        // Jitter / Bayat Paket Koruması: Gol sonrası 30s boyunca anlık dalgalanan paketler engellenir, gerçek VAR iptali 2s teyitle kabul edilir
         if (rawOldAway !== null && newAway < rawOldAway) {
-          if (nowTs - lastGoalTime < 15000) {
-            newAway = rawOldAway; // İlk 15 saniye içindeki anlık paket dalgalanmasını engelle
+          if (nowTs - lastGoalTime < 30000) {
+            newAway = rawOldAway; // İlk 30 saniye içindeki anlık paket dalgalanmasını engelle
           } else if (!isInitialSync) {
             goalCancelled = true;
             oldScoreBeforeCancel = `${m.home_score !== null && m.home_score !== undefined ? m.home_score : 0}-${rawOldAway}`;
