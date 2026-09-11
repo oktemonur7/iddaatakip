@@ -11,7 +11,7 @@
 | **GitHub Repo** | https://github.com/oktemonur7/FootFlow.git (Branch: main) |
 | **Web Sitesi (GitHub Pages)** | https://oktemonur7.github.io/FootFlow/ |
 | **Push & Sync Sunucusu (Render)** | https://footflow-6550.onrender.com (Python 3, Free Plan, Virginia) |
-| **UptimeRobot İzleme** | https://footflow-6550.onrender.com/api/subscriptions (Her 5 dk) |
+| **UptimeRobot İzleme** | https://footflow-6550.onrender.com/api/subscriptions (Her 10 dk) |
 | **Service Worker Önbellek** | `footflow-v50` |
 | **PWA Manifest Adı** | FootFlow |
 | **Render Plan** | Free (750 saat/ay) — tek servis yeterli |
