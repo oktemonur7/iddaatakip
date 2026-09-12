@@ -4231,7 +4231,13 @@ var u,f,l,d=String.fromCharCode;t.exports={version:"2.1.2",encode:a,decode:h}},f
       "porto": ["fc porto"],
       "den haag": ["ado den haag"],
       "sittard": ["fortuna sittard"],
-      "manchester": ["man", "manchester united", "man utd", "manchester utd", "man united"]
+      "manchester": ["man", "manchester united", "man utd", "manchester utd", "man united"],
+      "qpr": ["queens park rangers", "queens", "rangers"],
+      "queens": ["qpr", "queens park rangers"],
+      "rangers": ["qpr", "queens park rangers"],
+      "west brom": ["west bromwich", "west bromwich albion", "wba"],
+      "west bromwich": ["west brom", "west bromwich albion", "wba"],
+      "wba": ["west brom", "west bromwich"]
     };
 
     function getStreamTeamTokens(teamName) {
@@ -4258,44 +4264,51 @@ var u,f,l,d=String.fromCharCode;t.exports={version:"2.1.2",encode:a,decode:h}},f
       return t1.some(w => t2.some(w2 => w === w2 || (w.length >= 3 && w2.includes(w)) || (w2.length >= 3 && w.includes(w2))));
     }
 
-    function findNtvStream(homeTeam, awayTeam) {
-      if (!ntvMatchesCache || ntvMatchesCache.length === 0) return null;
+    // Hem Falcon hem Kobra sunucusundaki eşleşen tüm yayın kayıtlarını topla
+    function findAllNtvStreams(homeTeam, awayTeam) {
+      if (!ntvMatchesCache || ntvMatchesCache.length === 0) return [];
+      const matched = [];
 
-      // 1. Önce doğrudan çalışır video kaynak URL'i olan yayınları ara
-      const withValidSources = ntvMatchesCache.filter(m => (m.sources || []).some(s => s.url && s.url.startsWith("http")));
-      const otherMatches = ntvMatchesCache.filter(m => !(m.sources || []).some(s => s.url && s.url.startsWith("http")));
-      const candidateList = [...withValidSources, ...otherMatches];
-
-      for (const m of candidateList) {
+      for (const m of ntvMatchesCache) {
         const mHome = m.teams?.home?.name || "";
         const mAway = m.teams?.away?.name || "";
 
-        // 1. Yapılandırılmış takım adları varsa kontrol et
+        let isMatch = false;
         if (mHome && mAway) {
           if (
             (isStreamTeamMatch(homeTeam, mHome) && isStreamTeamMatch(awayTeam, mAway)) ||
             (isStreamTeamMatch(homeTeam, mAway) && isStreamTeamMatch(awayTeam, mHome))
           ) {
-            return m;
+            isMatch = true;
           }
         }
 
-        // 2. Başlığı 'vs', 'v.' veya '-' üzerinden bölerek kontrol et
-        const titleParts = (m.title || "").split(/\s+(?:vs\.?|v\.|-)\s+/i);
-        if (titleParts.length === 2) {
-          if (
-            (isStreamTeamMatch(homeTeam, titleParts[0]) && isStreamTeamMatch(awayTeam, titleParts[1])) ||
-            (isStreamTeamMatch(homeTeam, titleParts[1]) && isStreamTeamMatch(awayTeam, titleParts[0]))
-          ) {
-            return m;
-          }
-        } else if (titleParts.length === 1) {
-          if (isStreamTeamMatch(homeTeam, m.title) && isStreamTeamMatch(awayTeam, m.title)) {
-            return m;
+        if (!isMatch) {
+          const titleParts = (m.title || "").split(/\s+(?:vs\.?|v\.|-)\s+/i);
+          if (titleParts.length === 2) {
+            if (
+              (isStreamTeamMatch(homeTeam, titleParts[0]) && isStreamTeamMatch(awayTeam, titleParts[1])) ||
+              (isStreamTeamMatch(homeTeam, titleParts[1]) && isStreamTeamMatch(awayTeam, titleParts[0]))
+            ) {
+              isMatch = true;
+            }
+          } else if (titleParts.length === 1) {
+            if (isStreamTeamMatch(homeTeam, m.title) && isStreamTeamMatch(awayTeam, m.title)) {
+              isMatch = true;
+            }
           }
         }
+
+        if (isMatch) {
+          matched.push(m);
+        }
       }
-      return null;
+      return matched;
+    }
+
+    function findNtvStream(homeTeam, awayTeam) {
+      const list = findAllNtvStreams(homeTeam, awayTeam);
+      return list.length > 0 ? list[0] : null;
     }
 
     async function openMatchStream(homeTeam, awayTeam, event) {
@@ -4330,28 +4343,58 @@ var u,f,l,d=String.fromCharCode;t.exports={version:"2.1.2",encode:a,decode:h}},f
         await fetchNtvMatches(true);
       }
 
-      const stream = findNtvStream(homeTeam, awayTeam);
+      // Hem Falcon hem Kobra maçlarını birleştirerek tara
+      const matchedStreams = findAllNtvStreams(homeTeam, awayTeam);
 
-      if (stream) {
-        const serverName = stream._server || "falcon";
-        const watchUrl = `https://ntv.cx/watch/${serverName}/${stream.id}`;
+      if (matchedStreams.length > 0) {
+        const primaryStream = matchedStreams.find(s => s._server === "falcon") || matchedStreams[0];
+        const serverName = primaryStream._server || "falcon";
+        const watchUrl = `https://ntv.cx/watch/${serverName}/${primaryStream.id}`;
         if (extBtn) {
           extBtn.href = watchUrl;
           extBtn.style.display = "inline-flex";
         }
-        if (badgeEl && stream.live) {
+        if (badgeEl && matchedStreams.some(s => s.live)) {
           badgeEl.textContent = "CANLI";
           badgeEl.className = "stream-live-tag live-pulse";
         }
 
-        // Yalnızca doğrudan video oynatıcı URL'i olan kaynakları filtrele
-        const validSources = (stream.sources || []).filter(s => s && s.url && s.url.startsWith("http") && !s.url.includes("ntv.cx/watch"));
-        const sources = validSources.length > 0 ? validSources : (stream.sources && stream.sources.length > 0 ? stream.sources : []);
+        // Falcon ve Kobra maçlarındaki tüm geçerli video kaynaklarını topla
+        const allSources = [];
+        const seenUrls = new Set();
 
-        if (sources.length === 0 || !sources[0].url) {
-          // Doğrudan video kaynağı yoksa
-          const serverName = stream._server || "falcon";
-          const directMatchUrl = `https://ntv.cx/watch/${serverName}/${stream.id}`;
+        matchedStreams.forEach(streamItem => {
+          const sServer = (streamItem._server || "falcon").toUpperCase();
+          const srvBadge = sServer === "FALCON" ? "⚡ Falcon" : "🐍 Kobra";
+
+          (streamItem.sources || []).forEach((src, idx) => {
+            if (src && src.url && src.url.startsWith("http") && !src.url.includes("ntv.cx/watch") && !seenUrls.has(src.url)) {
+              seenUrls.add(src.url);
+              let chLabel = src.channelName || src.label || `Kanal ${idx + 1}`;
+              // Sunucu adını kanal butonuna net yansıt
+              if (!chLabel.toLowerCase().includes("falcon") && !chLabel.toLowerCase().includes("kobra")) {
+                chLabel = `${srvBadge} - ${chLabel}`;
+              }
+              allSources.push({
+                ...src,
+                _server: streamItem._server,
+                _matchId: streamItem.id,
+                channelName: chLabel
+              });
+            }
+          });
+        });
+
+        // Falcon kaynaklarını önce, Kobra kaynaklarını sonra listele (Falcon öncelikli)
+        allSources.sort((a, b) => {
+          if (a._server === "falcon" && b._server !== "falcon") return -1;
+          if (a._server !== "falcon" && b._server === "falcon") return 1;
+          return 0;
+        });
+
+        if (allSources.length === 0) {
+          // Doğrudan video kaynağı yoksa harici linkleri göster
+          const directMatchUrl = `https://ntv.cx/watch/${serverName}/${primaryStream.id}`;
           if (extBtn) {
             extBtn.href = directMatchUrl;
             extBtn.style.display = "inline-flex";
@@ -4371,20 +4414,35 @@ var u,f,l,d=String.fromCharCode;t.exports={version:"2.1.2",encode:a,decode:h}},f
           return;
         }
 
-        const defaultSourceUrl = sources[0].url;
+        const defaultSourceUrl = allSources[0].url;
 
         let channelButtonsHtml = "";
-        if (sources.length >= 1) {
-          // Kanal seçici butonları - hem tek hem çoklu kaynak için
-          const chBtns = sources.map((s, idx) => {
+        if (allSources.length >= 1) {
+          const chBtns = allSources.map((s, idx) => {
             const safeUrl = (s.url || "").replace(/'/g, "\\'");
-            const label = s.channelName || s.label || ("Kanal " + (idx + 1));
+            const safeWatch = `https://ntv.cx/watch/${s._server || 'falcon'}/${s._matchId || ''}`;
+            const isFalcon = s._server === "falcon";
+            const badgeIcon = isFalcon ? "⚡" : "🐍";
+            const activeBg = isFalcon ? "#00ff85" : "#38bdf8";
+            const activeColor = "#000";
+            const normalBg = isFalcon ? "rgba(0, 255, 133, 0.12)" : "rgba(56, 189, 248, 0.12)";
+            const normalBorder = isFalcon ? "rgba(0, 255, 133, 0.3)" : "rgba(56, 189, 248, 0.3)";
+            const normalColor = isFalcon ? "#00ff85" : "#38bdf8";
+
             return `<button type="button"
                 class="stream-ch-btn ${idx === 0 ? 'active' : ''}"
-                onclick="changeStreamChannel(this, '${safeUrl}')"
-                style="background: ${idx === 0 ? '#00ff85' : 'rgba(255,255,255,0.08)'}; color: ${idx === 0 ? '#000' : '#fff'}; border: none; padding: 5px 12px; border-radius: 6px; font-size: 0.78rem; font-weight: 700; cursor: pointer; white-space: nowrap; flex-shrink: 0;">${label}</button>`;
+                data-server="${s._server}"
+                data-watch="${safeWatch}"
+                onclick="changeStreamChannel(this, '${safeUrl}', '${safeWatch}')"
+                style="background: ${idx === 0 ? activeBg : normalBg}; color: ${idx === 0 ? activeColor : normalColor}; border: 1px solid ${idx === 0 ? 'transparent' : normalBorder}; padding: 6px 14px; border-radius: 6px; font-size: 0.80rem; font-weight: 700; cursor: pointer; white-space: nowrap; flex-shrink: 0; display: inline-flex; align-items: center; gap: 5px;">
+                <span>${s.channelName}</span>
+            </button>`;
           }).join("");
-          channelButtonsHtml = `<div style="display: flex; gap: 6px; padding: 4px 0 10px; overflow-x: auto; flex-wrap: nowrap;">${chBtns}</div>`;
+          channelButtonsHtml = `
+            <div style="display: flex; gap: 8px; padding: 4px 0 12px; overflow-x: auto; flex-wrap: nowrap; -webkit-overflow-scrolling: touch;">
+              ${chBtns}
+            </div>
+          `;
         }
 
         contentEl.innerHTML = `
@@ -4399,6 +4457,9 @@ var u,f,l,d=String.fromCharCode;t.exports={version:"2.1.2",encode:a,decode:h}},f
               webkitallowfullscreen="true"
               mozallowfullscreen="true">
             </iframe>
+          </div>
+          <div style="margin-top: 8px; font-size: 0.76rem; color: var(--text-muted); text-align: center;">
+            💡 Yayın yüklenmez veya hata verirse yukarıdaki diğer <strong style="color:#00ff85;">Falcon</strong> veya <strong style="color:#38bdf8;">Kobra</strong> kanalını seçebilirsiniz.
           </div>
         `;
       } else {
@@ -4426,17 +4487,28 @@ var u,f,l,d=String.fromCharCode;t.exports={version:"2.1.2",encode:a,decode:h}},f
       }
     }
 
-    function changeStreamChannel(btn, sourceUrl) {
+    function changeStreamChannel(btn, sourceUrl, watchUrl) {
       if (!sourceUrl) return;
       const parent = btn.parentElement;
       if (parent) {
         parent.querySelectorAll('.stream-ch-btn').forEach(b => {
-          b.style.background = 'rgba(255,255,255,0.08)';
-          b.style.color = '#fff';
+          const isF = b.getAttribute("data-server") === "falcon";
+          b.style.background = isF ? "rgba(0, 255, 133, 0.12)" : "rgba(56, 189, 248, 0.12)";
+          b.style.border = `1px solid ${isF ? "rgba(0, 255, 133, 0.3)" : "rgba(56, 189, 248, 0.3)"}`;
+          b.style.color = isF ? "#00ff85" : "#38bdf8";
+          b.classList.remove('active');
         });
       }
-      btn.style.background = '#00ff85';
+      const isFalcon = btn.getAttribute("data-server") === "falcon";
+      btn.style.background = isFalcon ? '#00ff85' : '#38bdf8';
+      btn.style.borderColor = 'transparent';
       btn.style.color = '#000';
+      btn.classList.add('active');
+
+      const extBtn = document.getElementById("stream-ext-btn");
+      if (extBtn && watchUrl) {
+        extBtn.href = watchUrl;
+      }
 
       const iframe = document.getElementById('main-stream-player-iframe');
       if (iframe) {
