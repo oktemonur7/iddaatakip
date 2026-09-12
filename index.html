@@ -4362,34 +4362,44 @@ var u,f,l,d=String.fromCharCode;t.exports={version:"2.1.2",encode:a,decode:h}},f
         // Falcon ve Kobra maçlarındaki tüm geçerli video kaynaklarını topla
         const allSources = [];
         const seenUrls = new Set();
+        let falconCount = 0;
+        let kobraCount = 0;
 
-        matchedStreams.forEach(streamItem => {
-          const sServer = (streamItem._server || "falcon").toUpperCase();
-          const srvBadge = sServer === "FALCON" ? "F" : "K";
+        // Önce Falcon maçlarını, sonra Kobra maçlarını sırala
+        const sortedStreams = [...matchedStreams].sort((a, b) => {
+          if (a._server === "falcon" && b._server !== "falcon") return -1;
+          if (a._server !== "falcon" && b._server === "falcon") return 1;
+          return 0;
+        });
 
-          (streamItem.sources || []).forEach((src, idx) => {
+        sortedStreams.forEach(streamItem => {
+          const isFalcon = (streamItem._server || "falcon").toLowerCase() === "falcon";
+          const srvPrefix = isFalcon ? "F" : "K";
+
+          (streamItem.sources || []).forEach(src => {
             if (src && src.url && src.url.startsWith("http") && !src.url.includes("ntv.cx/watch") && !seenUrls.has(src.url)) {
               seenUrls.add(src.url);
-              let chLabel = src.channelName || src.label || `Kanal ${idx + 1}`;
-              // Sunucu adını kanal butonuna net yansıt (F veya K kısaltmasıyla)
-              if (!chLabel.startsWith("F -") && !chLabel.startsWith("K -") && !chLabel.toLowerCase().includes("falcon") && !chLabel.toLowerCase().includes("kobra")) {
-                chLabel = `${srvBadge} - ${chLabel}`;
+              
+              // Kalite kontrolü: FHD veya HD kontrolü (channelName, label, id veya url içinde)
+              const rawMeta = `${src.channelName || ""} ${src.label || ""} ${src.id || ""} ${src.url || ""}`.toUpperCase();
+              let qualityTag = "";
+              if (rawMeta.includes("FHD") || rawMeta.includes("1080")) {
+                qualityTag = " FHD";
+              } else if (rawMeta.includes("HD") || rawMeta.includes("720") || rawMeta.includes("DLHD")) {
+                qualityTag = " HD";
               }
+
+              let seqNum = isFalcon ? (++falconCount) : (++kobraCount);
+              const cleanLabel = `${srvPrefix}-${seqNum}${qualityTag}`;
+
               allSources.push({
                 ...src,
                 _server: streamItem._server,
                 _matchId: streamItem.id,
-                channelName: chLabel
+                channelName: cleanLabel
               });
             }
           });
-        });
-
-        // Falcon kaynaklarını önce, Kobra kaynaklarını sonra listele (Falcon öncelikli)
-        allSources.sort((a, b) => {
-          if (a._server === "falcon" && b._server !== "falcon") return -1;
-          if (a._server !== "falcon" && b._server === "falcon") return 1;
-          return 0;
         });
 
         if (allSources.length === 0) {
