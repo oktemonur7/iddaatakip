@@ -5159,11 +5159,21 @@ var u,f,l,d=String.fromCharCode;t.exports={version:"2.1.2",encode:a,decode:h}},f
         const rawOldHome = (m.home_score !== null && m.home_score !== undefined && !isNaN(parseInt(m.home_score, 10))) ? parseInt(m.home_score, 10) : null;
         const oldHome = rawOldHome !== null ? rawOldHome : 0;
 
-        // Jitter / Bayat Paket Koruması: Gol sonrası 30s boyunca anlık dalgalanan paketler engellenir, gerçek VAR iptali 2s teyitle kabul edilir
+        // 1. Polling (HTTP) Verisi Koruması:
+        // Polling sunucu önbelleğinden 5 saniyede bir gelir ve soketten geride kalabilir.
+        // Polling verisi hiçbir zaman daha önce soketten alınmış yüksek skoru geriye düşüremez!
+        if (update._fromPolling && rawOldHome !== null && newHome < rawOldHome) {
+          newHome = rawOldHome;
+        }
+
+        // 2. Soket Jitter / Bayat Paket Koruması:
+        // Soket sunucu kümesinden (cluster) gelen paketlerde anlık düşüş olursa:
+        // Gol yeni geldiyse (son 60s) veya açıkça VAR iptali doğrulanmadıkça skor asla anında düşürülmez.
         if (rawOldHome !== null && newHome < rawOldHome) {
-          if (nowTs - lastGoalTime < 30000) {
-            newHome = rawOldHome; // İlk 30 saniye içindeki anlık paket dalgalanmasını engelle
-          } else if (!isInitialSync) {
+          if (nowTs - lastGoalTime < 60000) {
+            newHome = rawOldHome; // Son 60 saniye içindeki anlık paket dalgalanmasını engelle
+          } else if (!isInitialSync && !update._fromPolling) {
+            // Sadece arka arkaya gelen teyitli soket paketlerinde iptal değerlendirilir
             goalCancelled = true;
             oldScoreBeforeCancel = `${rawOldHome}-${m.away_score !== null && m.away_score !== undefined ? m.away_score : 0}`;
           }
@@ -5183,11 +5193,17 @@ var u,f,l,d=String.fromCharCode;t.exports={version:"2.1.2",encode:a,decode:h}},f
         const rawOldAway = (m.away_score !== null && m.away_score !== undefined && !isNaN(parseInt(m.away_score, 10))) ? parseInt(m.away_score, 10) : null;
         const oldAway = rawOldAway !== null ? rawOldAway : 0;
 
-        // Jitter / Bayat Paket Koruması: Gol sonrası 30s boyunca anlık dalgalanan paketler engellenir, gerçek VAR iptali 2s teyitle kabul edilir
+        // 1. Polling (HTTP) Verisi Koruması:
+        // Polling verisi hiçbir zaman daha önce soketten alınmış yüksek skoru geriye düşüremez!
+        if (update._fromPolling && rawOldAway !== null && newAway < rawOldAway) {
+          newAway = rawOldAway;
+        }
+
+        // 2. Soket Jitter / Bayat Paket Koruması:
         if (rawOldAway !== null && newAway < rawOldAway) {
-          if (nowTs - lastGoalTime < 30000) {
-            newAway = rawOldAway; // İlk 30 saniye içindeki anlık paket dalgalanmasını engelle
-          } else if (!isInitialSync) {
+          if (nowTs - lastGoalTime < 60000) {
+            newAway = rawOldAway; // Son 60 saniye içindeki anlık paket dalgalanmasını engelle
+          } else if (!isInitialSync && !update._fromPolling) {
             goalCancelled = true;
             oldScoreBeforeCancel = `${m.home_score !== null && m.home_score !== undefined ? m.home_score : 0}-${rawOldAway}`;
           }

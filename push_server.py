@@ -712,16 +712,16 @@ def process_match_update(update, is_initial=False, is_from_full_sync=False):
     }
 
     # Jitter / Bayat Paket Koruması:
-    # Yeni bir gol geldikten sonra (veya skor yükselişinden hemen sonra) 30 saniye içinde gelen düşük skor paketleri
-    # CDN/cluster kaynaklı ara dalgalanmadır (jitter), kesinlikle iptal bildirimi tetiklememeli.
+    # 1. Full sync (HTTP polling periyodu 30s) asla soketten gelen güncel skoru düşüremez ve iptal oluşturamaz.
+    # 2. Yeni bir gol geldikten sonra en az 60 saniye boyunca gelen düşük skor paketleri CDN/cluster kaynaklı ara dalgalanmadır (jitter).
     if new_h is not None and m["home_score"] is not None and new_h < m["home_score"]:
-        if (now_ts - last_goal_time) < 30:
+        if is_from_full_sync or (now_ts - last_goal_time) < 60:
             new_h = m["home_score"]
         else:
             is_home_cancel = True
 
     if new_a is not None and m["away_score"] is not None and new_a < m["away_score"]:
-        if (now_ts - last_goal_time) < 30:
+        if is_from_full_sync or (now_ts - last_goal_time) < 60:
             new_a = m["away_score"]
         else:
             is_away_cancel = True
@@ -990,10 +990,19 @@ def sahadan_http_sync_worker():
                                             old_a = tracked.get("away_score")
                                             old_min = tracked.get("minute")
                                             last_gt = tracked.get("last_goal_time", 0)
-                                            if (now - last_gt) < 6:
+                                            # Canlı maçlarda son 90s içinde gol olduysa veya full sync eski skoru getiriyorsa skoru geriye düşürme
+                                            if (now - last_gt) < 90:
                                                 if old_h is not None and (match_dict.get("fts_A") is None or int(match_dict.get("fts_A", 0)) < old_h):
                                                     match_dict["fts_A"] = old_h
                                                 if old_a is not None and (match_dict.get("fts_B") is None or int(match_dict.get("fts_B", 0)) < old_a):
+                                                    match_dict["fts_B"] = old_a
+                                            elif old_h is not None and old_a is not None:
+                                                # Full sync tek başına düşüş yaşatmasın; socket canlı verisi esastır
+                                                cur_new_h = int(match_dict.get("fts_A") or 0)
+                                                cur_new_a = int(match_dict.get("fts_B") or 0)
+                                                if cur_new_h < old_h:
+                                                    match_dict["fts_A"] = old_h
+                                                if cur_new_a < old_a:
                                                     match_dict["fts_B"] = old_a
                                             if old_min is not None and match_dict.get("minute") is not None:
                                                 try:
