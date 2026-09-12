@@ -4365,14 +4365,14 @@ var u,f,l,d=String.fromCharCode;t.exports={version:"2.1.2",encode:a,decode:h}},f
 
         matchedStreams.forEach(streamItem => {
           const sServer = (streamItem._server || "falcon").toUpperCase();
-          const srvBadge = sServer === "FALCON" ? "⚡ Falcon" : "🐍 Kobra";
+          const srvBadge = sServer === "FALCON" ? "F" : "K";
 
           (streamItem.sources || []).forEach((src, idx) => {
             if (src && src.url && src.url.startsWith("http") && !src.url.includes("ntv.cx/watch") && !seenUrls.has(src.url)) {
               seenUrls.add(src.url);
               let chLabel = src.channelName || src.label || `Kanal ${idx + 1}`;
-              // Sunucu adını kanal butonuna net yansıt
-              if (!chLabel.toLowerCase().includes("falcon") && !chLabel.toLowerCase().includes("kobra")) {
+              // Sunucu adını kanal butonuna net yansıt (F veya K kısaltmasıyla)
+              if (!chLabel.startsWith("F -") && !chLabel.startsWith("K -") && !chLabel.toLowerCase().includes("falcon") && !chLabel.toLowerCase().includes("kobra")) {
                 chLabel = `${srvBadge} - ${chLabel}`;
               }
               allSources.push({
@@ -4422,7 +4422,6 @@ var u,f,l,d=String.fromCharCode;t.exports={version:"2.1.2",encode:a,decode:h}},f
             const safeUrl = (s.url || "").replace(/'/g, "\\'");
             const safeWatch = `https://ntv.cx/watch/${s._server || 'falcon'}/${s._matchId || ''}`;
             const isFalcon = s._server === "falcon";
-            const badgeIcon = isFalcon ? "⚡" : "🐍";
             const activeBg = isFalcon ? "#00ff85" : "#38bdf8";
             const activeColor = "#000";
             const normalBg = isFalcon ? "rgba(0, 255, 133, 0.12)" : "rgba(56, 189, 248, 0.12)";
@@ -4457,9 +4456,6 @@ var u,f,l,d=String.fromCharCode;t.exports={version:"2.1.2",encode:a,decode:h}},f
               webkitallowfullscreen="true"
               mozallowfullscreen="true">
             </iframe>
-          </div>
-          <div style="margin-top: 8px; font-size: 0.76rem; color: var(--text-muted); text-align: center;">
-            💡 Yayın yüklenmez veya hata verirse yukarıdaki diğer <strong style="color:#00ff85;">Falcon</strong> veya <strong style="color:#38bdf8;">Kobra</strong> kanalını seçebilirsiniz.
           </div>
         `;
       } else {
