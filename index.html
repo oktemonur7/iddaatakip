@@ -2637,6 +2637,7 @@ var u,f,l,d=String.fromCharCode;t.exports={version:"2.1.2",encode:a,decode:h}},f
     }
 
     let favoriteMatchIds = new Set();
+    let currentPushSubscription = null;
 
     function checkAndResetFavoritesAt7AM() {
       const currentCycle = getFavoritesCycleId();
@@ -2658,20 +2659,26 @@ var u,f,l,d=String.fromCharCode;t.exports={version:"2.1.2",encode:a,decode:h}},f
           localStorage.removeItem("agy_fav_matches");
           localStorage.setItem("agy_fav_cycle", currentCycle);
         } catch (e) {}
-        updateLiveCounts();
-        if (typeof renderLiveScores === "function") {
-          renderLiveScores();
-        }
-        if (typeof syncFavoritesToServer === "function") {
-          syncFavoritesToServer();
-        }
+        try {
+          if (typeof updateLiveCounts === "function") updateLiveCounts();
+        } catch (e) {}
+        try {
+          if (typeof renderLiveScores === "function") renderLiveScores();
+        } catch (e) {}
+        try {
+          if (typeof syncFavoritesToServer === "function") syncFavoritesToServer();
+        } catch (e) {}
         return true;
       }
       return false;
     }
 
     // İlk açılışta sabah 07:00 kontrolü yap
-    checkAndResetFavoritesAt7AM();
+    try {
+      checkAndResetFavoritesAt7AM();
+    } catch (e) {
+      console.warn("checkAndResetFavoritesAt7AM init error:", e);
+    }
 
     try {
       const savedFavs = localStorage.getItem("agy_fav_matches");
@@ -2708,12 +2715,19 @@ var u,f,l,d=String.fromCharCode;t.exports={version:"2.1.2",encode:a,decode:h}},f
         initApp();
         return;
       }
-      checkAndResetFavoritesAt7AM();
-      if (typeof tickLiveMinutes === "function") tickLiveMinutes();
-      if (typeof renderLiveScores === "function") renderLiveScores();
+      try { checkAndResetFavoritesAt7AM(); } catch (e) {}
+      try { if (typeof tickLiveMinutes === "function") tickLiveMinutes(); } catch (e) {}
+      try { if (typeof renderLiveScores === "function") renderLiveScores(); } catch (e) {}
+
       const standingsEl = document.getElementById("standings-content");
-      if (standingsEl && (standingsEl.querySelector(".loading-state") || !standingsEl.querySelector("table"))) {
-        if (typeof loadCurrentLeague === "function") loadCurrentLeague();
+      const fixtureEl = document.getElementById("fixture-content");
+      const isStandingsStuck = standingsEl && (standingsEl.querySelector(".loading-state") || !standingsEl.querySelector("table"));
+      const isFixtureStuck = fixtureEl && (fixtureEl.querySelector(".loading-state") || !fixtureEl.querySelector(".match-item, .matches-group, .fixture-list"));
+
+      if (isStandingsStuck || isFixtureStuck) {
+        if (typeof loadCurrentLeague === "function") {
+          try { loadCurrentLeague(); } catch (e) { console.error("onAppResume loadCurrentLeague error:", e); }
+        }
       }
       if (typeof pollLiveScoresFromServer === "function") {
         pollLiveScoresFromServer(true);
@@ -5590,7 +5604,6 @@ var u,f,l,d=String.fromCharCode;t.exports={version:"2.1.2",encode:a,decode:h}},f
 
     // PWA WEB PUSH LOGIC
     const VAPID_PUBLIC_KEY = "BOMajR0yMBnHtW49PT6werFcmy5VYOW6F7ZV4y3qf1LLUEtvkKm06fK5MKG1vpcCztv8qpA18F7SHtjQ3sJ4nsU";
-    let currentPushSubscription = null;
 
     function getPushServerUrl() {
       const saved = localStorage.getItem("footflow_push_server") || localStorage.getItem("footfollow_push_server") || localStorage.getItem("iddaatakip_push_server");
