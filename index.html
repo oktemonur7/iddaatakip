@@ -3651,28 +3651,28 @@ var u,f,l,d=String.fromCharCode;t.exports={version:"2.1.2",encode:a,decode:h}},f
               }
               updateAllGoalTooltipsForMatch(uuid, homeTeam, awayTeam, goals, true, currentRetry.expectedGoals);
             }
-            // Her 5 saniyede bir dene (maksimum 15 deneme = ~1.5 dakika boyunca tara, sonra bırak)
-            const nextDelay = 5000;
-            if (currentRetry.retryCount < 15) {
+            // Eksik gol varsa her 3.5 saniyede bir dene (maksimum 18 deneme = ~1 dakika boyunca tara, sonra bırak)
+            const nextDelay = 3500;
+            if (currentRetry.retryCount < 18) {
               GOALS_PENDING_RETRY[uuid].timer = setTimeout(attempt, nextDelay);
             } else {
               delete GOALS_PENDING_RETRY[uuid];
-              // 15 deneme sonunda Sahadan golcüyü hiç girmemişse bekleme uyarısını kaldır
+              // Denemeler sonunda Sahadan golcüyü henüz girmemişse bekleme uyarısını kaldır
               updateAllGoalTooltipsForMatch(uuid, homeTeam, awayTeam, goals, true, goals.length);
             }
           }
         } catch(e) {
           if (GOALS_PENDING_RETRY[uuid]) {
-            if (currentRetry.retryCount < 15) {
-              GOALS_PENDING_RETRY[uuid].timer = setTimeout(attempt, 5000);
+            if (currentRetry.retryCount < 18) {
+              GOALS_PENDING_RETRY[uuid].timer = setTimeout(attempt, 3500);
             } else {
               delete GOALS_PENDING_RETRY[uuid];
             }
           }
         }
       };
-      // İlk denemeyi gol olduktan tam 10 saniye sonra yap (editörün sisteme girmesi için makul süre tanı)
-      GOALS_PENDING_RETRY[uuid].timer = setTimeout(attempt, 10000);
+      // İlk denemeyi gol olduktan 3 saniye sonra yap (Sahadan genelde 3-8 sn içinde işler)
+      GOALS_PENDING_RETRY[uuid].timer = setTimeout(attempt, 3000);
     }
 
 

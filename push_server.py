@@ -527,21 +527,21 @@ def send_push_for_match(match_identifiers, payload):
         return 0
 
     log_event(f"Maç bildirimi ({len(target_subs)} abone): {payload.get('title')} - {payload.get('body')}")
-    expired_endpoints = set()
-    sent_count = 0
+    
+    # Push bildirimini arka planda non-blocking olarak hemen gönder, socket/sync döngüsü beklemesin
+    def _dispatch_worker(targets, pl):
+        expired_endpoints = set()
+        for sub in targets:
+            ok, _ = send_push_to_sub(sub, pl)
+            if ok == "expired":
+                expired_endpoints.add(sub.get("endpoint"))
+        if expired_endpoints:
+            all_current = load_subscriptions()
+            active_subs = [s for s in all_current if s.get("endpoint") not in expired_endpoints]
+            save_subscriptions(active_subs)
 
-    for sub in target_subs:
-        ok, _ = send_push_to_sub(sub, payload)
-        if ok is True:
-            sent_count += 1
-        elif ok == "expired":
-            expired_endpoints.add(sub.get("endpoint"))
-
-    if expired_endpoints:
-        active_subs = [s for s in subs if s.get("endpoint") not in expired_endpoints]
-        save_subscriptions(active_subs)
-
-    return sent_count
+    threading.Thread(target=_dispatch_worker, args=(target_subs, payload), daemon=True).start()
+    return len(target_subs)
 
 # Send push to ALL subscribers (Test button / system)
 def send_push_to_all(payload):
@@ -597,8 +597,9 @@ def process_match_update(update, is_initial=False, is_from_full_sync=False):
             m = live_matches_state[cand_id]
             break
 
+    cached_names = match_names_map.get(mid, ("Ev Sahibi", "Deplasman"))
+
     if m is None:
-        cached_names = match_names_map.get(mid, ("Ev Sahibi", "Deplasman"))
         m = {
             "home_team": update.get("home_team_name") or cached_names[0],
             "away_team": update.get("away_team_name") or cached_names[1],
@@ -1077,7 +1078,7 @@ def sahadan_http_sync_worker():
             except Exception:
                 pass
 
-        time.sleep(3)
+        time.sleep(1.5)
 
 # Live WebSocket Listener (İkincil hızlı kanal)
 def start_socket_listener():
